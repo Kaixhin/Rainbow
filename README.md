@@ -7,9 +7,9 @@ Rainbow: Combining Improvements in Deep Reinforcement Learning. WIP.
 Requirements
 ------------
 
-- [Python](https://www.python.org/)
-- [Matplotlib](https://matplotlib.org/)
-- [ImageMagick](https://www.imagemagick.org/script/index.php)
+- [PyTorch](http://pytorch.org/)
+- [Plotly](https://plot.ly/)
+- [scikit-image](http://scikit-image.org/)
 
 Usage
 -----
