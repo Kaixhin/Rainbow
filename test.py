@@ -1,11 +1,10 @@
 import os
 import plotly
 from plotly.graph_objs import Scatter, Line
-import gym
 import torch
 from torch.autograd import Variable
 
-from utils import state_to_tensor
+from env import Env
 
 
 # Globals
@@ -14,7 +13,7 @@ Ts, rewards, Qs = [], [], []
 
 # Test DQN
 def test(args, T, dqn, val_mem, evaluate=False):
-  env = gym.make(args.game + 'Deterministic-v4')  # args.max_episode_length
+  env = Env(args)
   env.seed(args.seed)
   Ts.append(T)
   T_rewards, T_Qs = [], []
@@ -24,7 +23,7 @@ def test(args, T, dqn, val_mem, evaluate=False):
   for ep in range(args.evaluation_episodes):
     while True:
       if done:
-        state = Variable(state_to_tensor(env.reset()), volatile=True)
+        state = Variable(env.reset(), volatile=True)
         reward_sum = 0
         done = False
 
@@ -32,8 +31,8 @@ def test(args, T, dqn, val_mem, evaluate=False):
         env.render()
 
       action = dqn.act(state, 0.001)  # Choose an action (almost) greedily
-      state, reward, done, _ = env.step(action)  # Step
-      state = Variable(state_to_tensor(state), volatile=True)
+      state, reward, done = env.step(action)  # Step
+      state = Variable(state, volatile=True)
       reward_sum += reward
 
       if done:

@@ -1,22 +1,21 @@
 import argparse
 import random
-import gym
 import torch
 from torch.autograd import Variable
 
 from agent import Agent
+from env import Env
 from memory import ReplayMemory
 from test import test
-from utils import state_to_tensor
 
 
 parser = argparse.ArgumentParser(description='Rainbow')
 parser.add_argument('--seed', type=int, default=123, help='Random seed')
 parser.add_argument('--game', type=str, default='Pong', help='ATARI game')
 parser.add_argument('--T-max', type=int, default=50000, metavar='STEPS', help='Number of training steps')  # TODO: 5e7
-parser.add_argument('--max-episode-length', type=int, default=100, metavar='LENGTH', help='Max episode length')
+parser.add_argument('--max-episode-length', type=int, default=1e6, metavar='LENGTH', help='Max episode length')
 parser.add_argument('--history-length', type=int, default=4, metavar='T', help='Number of consecutive states processed')  # TODO: Cyclic buffer
-parser.add_argument('--hidden-size', type=int, default=256, metavar='SIZE', help='Network hidden size')
+parser.add_argument('--hidden-size', type=int, default=512, metavar='SIZE', help='Network hidden size')
 parser.add_argument('--model', type=str, metavar='PARAMS', help='Pretrained model (state dict)')
 parser.add_argument('--memory-capacity', type=int, default=10000, metavar='CAPACITY', help='Experience replay memory capacity')  # TODO: 1e6
 parser.add_argument('--replay-frequency', type=int, default=4, metavar='k', help='Frequency of sampling from memory')
@@ -44,7 +43,7 @@ print(' ' * 26 + 'Options')
 for k, v in vars(args).items():
   print(' ' * 26 + k + ': ' + str(v))
 torch.manual_seed(args.seed)
-env = gym.make(args.game + 'Deterministic-v4')  # TODO: args.max_episode_length
+env = Env(args)
 env.seed(args.seed)
 
 
@@ -54,7 +53,6 @@ dqn = Agent(args)
 mem = ReplayMemory(args.memory_capacity)
 
 
-# TODO: History buffer
 # Training setup
 epsilon = args.epsilon_start
 epsilon_decrease = (args.epsilon_start - args.epsilon_end) / args.epsilon_steps
@@ -64,12 +62,12 @@ T, done = 0, True
 val_mem = ReplayMemory(args.evaluation_size)
 while T < args.evaluation_size:
   if done:
-    state, done = state_to_tensor(env.reset()), False
+    state, done = env.reset(), False
 
-  next_state, _, done, _ = env.step(random.randint(0, action_size - 1))
+  next_state, _, done = env.step(random.randint(0, action_size - 1))
   T += 1
   val_mem.append(state, None, None, None)
-  state = state_to_tensor(next_state)
+  state = next_state
 
 
 if args.evaluate:
@@ -81,12 +79,11 @@ else:
   T, done = 0, True
   while T < args.T_max:
     if done:
-      state, done = Variable(state_to_tensor(env.reset())), False
+      state, done = Variable(env.reset()), False
 
     action = dqn.act(state, epsilon)  # Choose an action with ε-greedy
 
-    next_state, reward, done, _ = env.step(action)  # Step
-    next_state = state_to_tensor(next_state)
+    next_state, reward, done = env.step(action)  # Step
     if args.reward_clip > 0:
       reward = max(min(reward, args.reward_clip), -args.reward_clip)  # Clip rewards
     T += 1
