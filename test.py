@@ -15,6 +15,7 @@ Ts, rewards, Qs = [], [], []
 def test(args, T, dqn, val_mem, evaluate=False):
   env = Env(args)
   env.seed(args.seed)
+  env.eval()
   Ts.append(T)
   T_rewards, T_Qs = [], []
 

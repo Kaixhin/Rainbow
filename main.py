@@ -45,6 +45,7 @@ for k, v in vars(args).items():
 torch.manual_seed(args.seed)
 env = Env(args)
 env.seed(args.seed)
+env.train()
 action_space = env.action_space()
 
 
@@ -76,6 +77,7 @@ if args.evaluate:
   print('Avg. reward: ' + str(avg_reward) + ' | Avg. Q: ' + str(avg_Q))
 else:
   # Training loop
+  dqn.train()
   T, done = 0, True
   while T < args.T_max:
     if done:
