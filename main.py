@@ -12,8 +12,8 @@ from test import test
 parser = argparse.ArgumentParser(description='Rainbow')
 parser.add_argument('--seed', type=int, default=123, help='Random seed')
 parser.add_argument('--game', type=str, default='Pong', help='ATARI game')
-parser.add_argument('--T-max', type=int, default=50000, metavar='STEPS', help='Number of training steps')  # TODO: 5e7
-parser.add_argument('--max-episode-length', type=int, default=1e6, metavar='LENGTH', help='Max episode length')
+parser.add_argument('--T-max', type=int, default=int(5e7), metavar='STEPS', help='Number of training steps')
+parser.add_argument('--max-episode-length', type=int, default=int(1e6), metavar='LENGTH', help='Max episode length')
 parser.add_argument('--history-length', type=int, default=4, metavar='T', help='Number of consecutive states processed')  # TODO: Cyclic buffer
 parser.add_argument('--hidden-size', type=int, default=512, metavar='SIZE', help='Network hidden size')
 parser.add_argument('--model', type=str, metavar='PARAMS', help='Pretrained model (state dict)')
@@ -45,11 +45,11 @@ for k, v in vars(args).items():
 torch.manual_seed(args.seed)
 env = Env(args)
 env.seed(args.seed)
+action_space = env.action_space()
 
 
 # Agent
-action_size = 4  # TODO: Pass properly
-dqn = Agent(args)
+dqn = Agent(args, env)
 mem = ReplayMemory(args.memory_capacity)
 
 
@@ -64,7 +64,7 @@ while T < args.evaluation_size:
   if done:
     state, done = env.reset(), False
 
-  next_state, _, done = env.step(random.randint(0, action_size - 1))
+  next_state, _, done = env.step(random.randint(0, action_space - 1))
   T += 1
   val_mem.append(state, None, None, None)
   state = next_state

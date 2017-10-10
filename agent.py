@@ -10,18 +10,18 @@ from model import DQN
 
 
 class Agent():
-  def __init__(self, args):
-    self.action_size = 4
+  def __init__(self, args, env):
+    self.action_space = env.action_space()
     self.batch_size = args.batch_size
     self.discount = args.discount
     self.max_gradient_norm = args.max_gradient_norm
 
-    self.policy_net = DQN(args.hidden_size, self.action_size)
+    self.policy_net = DQN(args, self.action_space)
     if args.model and os.path.isfile(args.model):
       self.policy_net.load_state_dict(torch.load(args.model))
     self.policy_net.train()
 
-    self.target_net = DQN(args.hidden_size, self.action_size)
+    self.target_net = DQN(args, self.action_space)
     self.update_target_net()
     self.target_net.eval()
 
@@ -31,7 +31,7 @@ class Agent():
     if random.random() > epsilon:
       return self.policy_net(state.unsqueeze(0)).max(1)[1].data[0]
     else:
-      return random.randint(0, self.action_size - 1)
+      return random.randint(0, self.action_space - 1)
 
   def learn(self, mem):
     transitions = mem.sample(self.batch_size)

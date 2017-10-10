@@ -1,7 +1,11 @@
+import logging
 from collections import deque
 from skimage import color, transform
 import gym
 import torch
+
+# Disable gym logging
+logging.disable(logging.INFO)
 
 
 def _state_to_tensor(state):
@@ -14,8 +18,8 @@ class Env():
   def __init__(self, args):
     super().__init__()
     self.env = gym.make(args.game + 'Deterministic-v4')
-    self.window = 4  # Number of frames to concatenate
-    self.buffer = deque([], maxlen=self.window)
+    self.window = args.history_length  # Number of frames to concatenate
+    self.buffer = deque([], maxlen=args.history_length)
     self.t = 0  # Internal step counter
     self.T = args.max_episode_length
 
@@ -23,6 +27,7 @@ class Env():
     for t in range(self.window):
       self.buffer.append(torch.zeros(84, 84))
 
+  # TODO: 30 random no-op starts?
   def reset(self):
     # Reset internals
     self.t = 0
@@ -38,12 +43,16 @@ class Env():
     observation, reward, done, _ = self.env.step(action)
     observation = _state_to_tensor(observation)
     self.buffer.append(observation)
+    # TODO: Detect end of life as terminal?
     # Time out episode if necessary
     self.t += 1
     if self.t == self.T:
       done = True
     # Return state, reward, done
     return torch.stack(self.buffer, 0), reward, done
+
+  def action_space(self):
+    return self.env.action_space.n
 
   def seed(self, seed):
     self.env.seed(seed)
