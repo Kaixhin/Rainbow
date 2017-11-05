@@ -5,12 +5,18 @@ Rainbow
 Rainbow: Combining Improvements in Deep Reinforcement Learning [[1]](#references). WIP.
 
 - [x] DQN [[2]](#references)
-- [ ] Double DQN [[3]](#references)
+- [x] Double DQN [[3]](#references)
 - [ ] Prioritised Experience Replay [[4]](#references)
 - [x] Dueling Network Architecture [[5]](#references)
 - [ ] Multi-step Returns [[6]](#references)
 - [x] Distributional RL [[7]](#references)
 - [x] Noisy Nets [[8]](#references)
+
+**TODO:**
+
+1. Make more efficient experience replay memory
+2. Implement n-step returns
+3. Implement proportional prioritised experience replay
 
 Requirements
 ------------
@@ -23,6 +29,7 @@ Acknowledgements
 ----------------
 
 - [@floringogianu](https://github.com/floringogianu) for [categorical-dqn](https://github.com/floringogianu/categorical-dqn)
+- [@jvmancuso](https://github.com/jvmancuso) for [Noisy layer](https://github.com/pytorch/pytorch/pull/2103)
 
 References
 ----------
