@@ -15,6 +15,9 @@ parser.add_argument('--game', type=str, default='Pong', help='ATARI game')
 parser.add_argument('--T-max', type=int, default=int(5e7), metavar='STEPS', help='Number of training steps')
 parser.add_argument('--max-episode-length', type=int, default=int(1e6), metavar='LENGTH', help='Max episode length')
 parser.add_argument('--history-length', type=int, default=4, metavar='T', help='Number of consecutive states processed')  # TODO: Cyclic buffer
+parser.add_argument('--atoms', type=int, default=51, metavar='C', help='Discretised size of value distribution')
+parser.add_argument('--V-min', type=float, default=-10, metavar='V', help='Minimum of value distribution support')
+parser.add_argument('--V-max', type=float, default=10, metavar='V', help='Maximum of value distribution support')
 parser.add_argument('--hidden-size', type=int, default=512, metavar='SIZE', help='Network hidden size')
 parser.add_argument('--model', type=str, metavar='PARAMS', help='Pretrained model (state dict)')
 parser.add_argument('--memory-capacity', type=int, default=10000, metavar='CAPACITY', help='Experience replay memory capacity')  # TODO: 1e6

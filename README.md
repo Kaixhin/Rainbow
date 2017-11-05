@@ -22,7 +22,7 @@ Requirements
 Acknowledgements
 ----------------
 
-TODO
+- [@floringogianu](https://github.com/floringogianu) for [categorical-dqn](https://github.com/floringogianu/categorical-dqn)
 
 References
 ----------
