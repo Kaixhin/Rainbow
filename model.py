@@ -48,8 +48,6 @@ class DQN(nn.Module):
   def __init__(self, args, action_space):
     super().__init__()
     self.action_space = action_space
-    self.relu = nn.ReLU()
-    self.softmax = nn.Softmax()
 
     self.conv1 = nn.Conv2d(args.history_length, 32, 8, stride=4, padding=1)
     self.conv2 = nn.Conv2d(32, 64, 4, stride=2)
@@ -59,12 +57,12 @@ class DQN(nn.Module):
     self.fc_z_a = NoisyLinear(args.hidden_size, action_space * args.atoms, std_init=args.noisy_std)
 
   def forward(self, x):
-    x = self.relu(self.conv1(x))
-    x = self.relu(self.conv2(x))
-    x = self.relu(self.conv3(x))
-    x = x.view(x.size(0), -1)
-    x = self.relu(self.fc_h(x))
+    x = F.relu(self.conv1(x))
+    x = F.relu(self.conv2(x))
+    x = F.relu(self.conv3(x))
+    x = F.relu(self.fc_h(x.view(x.size(0), -1)))
     v, a = self.fc_z_v(x), self.fc_z_a(x)  # Calculate value and advantage streams
-    x = v.repeat(1, self.action_space) + a - a.mean(1, keepdim=True).expand_as(a)
-    p = torch.stack([self.softmax(p) for p in x.chunk(self.action_space, 1)], 1)  # Probabilities with action over second dimension
+    a_mean = torch.stack(a.chunk(self.action_space, 1), 1).mean(1)
+    x = v.repeat(1, self.action_space) + a - a_mean.repeat(1, self.action_space)  # Combine streams
+    p = torch.stack([F.softmax(p) for p in x.chunk(self.action_space, 1)], 1)  # Probabilities with action over second dimension
     return p.clamp(min=1e-8, max=1 - 1e-8)  # Use clipping to prevent NaNs
