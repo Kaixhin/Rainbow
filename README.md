@@ -4,12 +4,12 @@ Rainbow
 
 Rainbow: Combining Improvements in Deep Reinforcement Learning [[1]](#references). WIP.
 
-- [ ] DQN [[2]](#references)
+- [x] DQN [[2]](#references)
 - [ ] Double DQN [[3]](#references)
 - [ ] Prioritised Experience Replay [[4]](#references)
-- [ ] Dueling Network Architecture [[5]](#references)
+- [x] Dueling Network Architecture [[5]](#references)
 - [ ] Multi-step Returns [[6]](#references)
-- [ ] Distributional RL [[7]](#references)
+- [x] Distributional RL [[7]](#references)
 - [ ] Noisy Nets [[8]](#references)
 
 Requirements

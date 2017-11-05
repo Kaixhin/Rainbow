@@ -48,16 +48,17 @@ class Agent():
     non_final_mask = torch.ByteTensor(tuple(map(lambda s: s is not None, batch.next_state)))  # Only process non-terminal next states
     next_states = Variable(torch.stack(tuple(s for s in batch.next_state if s is not None), 0), volatile=True)
 
+    # TODO: Tidy this section up
     # Compute probabilities of Q(s,a*)
     q_probs = self.policy_net(states)
     qa_probs = q_probs[range(self.batch_size), actions]
 
     # Compute distribution of Q(s_,a)
-    # target_qa_probs = self._get_categorical(next_states, rewards, mask)
-
     # Compute probabilities p(x, a)
+    # TODO: Use n-step distributional loss
     probs = self.target_net(next_states).data
     qs = self.support.expand_as(probs) * probs
+    # TODO: Use double-Q action selection
     argmax_a = qs.sum(2).max(1)[1]
     qa_probs2 = probs[range(self.batch_size), argmax_a]
 

@@ -5,8 +5,6 @@ from torch.autograd import Variable
 from torch.nn import functional as F
 
 
-
-
 class DQN(nn.Module):
   def __init__(self, args, action_space):
     super().__init__()
@@ -18,11 +16,8 @@ class DQN(nn.Module):
     self.conv2 = nn.Conv2d(32, 64, 4, stride=2)
     self.conv3 = nn.Conv2d(64, 64, 3)
     self.fc1 = nn.Linear(3136, args.hidden_size)  # TODO: Noisy linear layers
-    self.fc_z = nn.Linear(args.hidden_size, action_space * args.atoms)
-
-    # self.fc_v = nn.Linear(args.hidden_size, 1)
-    # self.fc_a = nn.Linear(args.hidden_size, action_space)
-    # TODO: Distributional version
+    self.fc_z_v = nn.Linear(args.hidden_size, args.atoms)
+    self.fc_z_a = nn.Linear(args.hidden_size, action_space * args.atoms)
 
   def forward(self, x):
     x = self.relu(self.conv1(x))
@@ -30,8 +25,7 @@ class DQN(nn.Module):
     x = self.relu(self.conv3(x))
     x = x.view(x.size(0), -1)
     x = self.relu(self.fc1(x))
-    p = torch.stack([self.softmax(z).clamp(min=1e-8, max=1 - 1e-8) for z in self.fc_z(x).chunk(self.action_space, 1)], 1)
-    return p  # Probabilities with action over second dimension
-    # v = self.fc_v(x)
-    # a = self.fc_a(x)
-    # return v.expand_as(a) + a - a.mean(1, keepdim=True).expand_as(a)
+    v, a = self.fc_z_v(x), self.fc_z_a(x)  # Calculate value and advantage streams
+    x = v.repeat(1, self.action_space) + a - a.mean(1, keepdim=True).expand_as(a)
+    p = torch.stack([self.softmax(p) for p in x.chunk(self.action_space, 1)], 1)  # Probabilities with action over second dimension
+    return p.clamp(min=1e-8, max=1 - 1e-8)  # Use clipping to prevent NaNs
