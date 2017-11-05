@@ -31,7 +31,7 @@ def test(args, T, dqn, val_mem, evaluate=False):
       if args.render:
         env.render()
 
-      action = dqn.act(state, 0.001)  # Choose an action (almost) greedily
+      action = dqn.act(state)  # Choose an action  greedily
       state, reward, done = env.step(action)  # Step
       state = Variable(state, volatile=True)
       reward_sum += reward

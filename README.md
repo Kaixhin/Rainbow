@@ -10,7 +10,7 @@ Rainbow: Combining Improvements in Deep Reinforcement Learning [[1]](#references
 - [x] Dueling Network Architecture [[5]](#references)
 - [ ] Multi-step Returns [[6]](#references)
 - [x] Distributional RL [[7]](#references)
-- [ ] Noisy Nets [[8]](#references)
+- [x] Noisy Nets [[8]](#references)
 
 Requirements
 ------------

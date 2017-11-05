@@ -1,9 +1,7 @@
 import os
-import random
 import torch
 from torch import nn, optim
 from torch.autograd import Variable
-from torch.nn import functional as F
 
 from memory import Transition
 from model import DQN
@@ -30,13 +28,16 @@ class Agent():
     self.update_target_net()
     self.target_net.eval()
 
-    self.optimiser = optim.Adam(self.policy_net.parameters(), lr=args.lr)
+    self.optimiser = optim.Adam(self.policy_net.parameters(), lr=args.lr, eps=args.adam_eps)
 
-  def act(self, state, epsilon):
-    if random.random() > epsilon:
-      return (self.policy_net(state.unsqueeze(0)).data * self.support).sum(2).max(1)[1][0]
-    else:
-      return random.randint(0, self.action_space - 1)
+  # Resets noisy weights in all linear layers
+  def reset_noise(self):
+    for name, module in self.policy_net.named_children():
+      if 'fc' in name:
+        module.reset_noise()
+
+  def act(self, state):
+    return (self.policy_net(state.unsqueeze(0)).data * self.support).sum(2).max(1)[1][0]
 
   def learn(self, mem):
     transitions = mem.sample(self.batch_size)

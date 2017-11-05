@@ -15,23 +15,22 @@ parser.add_argument('--game', type=str, default='Pong', help='ATARI game')
 parser.add_argument('--T-max', type=int, default=int(5e7), metavar='STEPS', help='Number of training steps')
 parser.add_argument('--max-episode-length', type=int, default=int(1e6), metavar='LENGTH', help='Max episode length')
 parser.add_argument('--history-length', type=int, default=4, metavar='T', help='Number of consecutive states processed')  # TODO: Cyclic buffer
+parser.add_argument('--hidden-size', type=int, default=512, metavar='SIZE', help='Network hidden size')
+parser.add_argument('--noisy-std', type=float, default=0.5, metavar='σ', help='Initial standard deviation of noisy linear layers')
 parser.add_argument('--atoms', type=int, default=51, metavar='C', help='Discretised size of value distribution')
 parser.add_argument('--V-min', type=float, default=-10, metavar='V', help='Minimum of value distribution support')
 parser.add_argument('--V-max', type=float, default=10, metavar='V', help='Maximum of value distribution support')
-parser.add_argument('--hidden-size', type=int, default=512, metavar='SIZE', help='Network hidden size')
 parser.add_argument('--model', type=str, metavar='PARAMS', help='Pretrained model (state dict)')
 parser.add_argument('--memory-capacity', type=int, default=10000, metavar='CAPACITY', help='Experience replay memory capacity')  # TODO: 1e6
 parser.add_argument('--replay-frequency', type=int, default=4, metavar='k', help='Frequency of sampling from memory')
 # TODO: Memory prioritisation (w/ alpha and beta hyperparams)?
 parser.add_argument('--discount', type=float, default=0.99, metavar='γ', help='Discount factor')
-parser.add_argument('--epsilon-start', type=float, default=1, metavar='ε', help='Initial value of greediness')
-parser.add_argument('--epsilon-end', type=float, default=0.01, metavar='ε', help='Final value of greediness')
-parser.add_argument('--epsilon-steps', type=int, default=10000, metavar='STEPS', help='Number of steps over which to decay greediness')  # TODO: 1e6
-parser.add_argument('--target-update', type=int, default=1000, metavar='τ', help='Number of steps after which to update target network')  # TODO: 30000
+parser.add_argument('--target-update', type=int, default=1000, metavar='τ', help='Number of steps after which to update target network')  # TODO: 32000
 parser.add_argument('--reward-clip', type=int, default=1, metavar='VALUE', help='Reward clipping (0 to disable)')
-parser.add_argument('--lr', type=float, default=0.00025, metavar='η', help='Learning rate')
+parser.add_argument('--lr', type=float, default=0.0000625, metavar='η', help='Learning rate')
+parser.add_argument('--adam-eps', type=float, default=1.5e-4, metavar='ε', help='Adam epsilon')
 parser.add_argument('--batch-size', type=int, default=32, metavar='SIZE', help='Batch size')  # Assumed to be < learn_start
-parser.add_argument('--learn-start', type=int, default=1000, metavar='STEPS', help='Number of steps before starting training')  # TODO: 5e4
+parser.add_argument('--learn-start', type=int, default=1000, metavar='STEPS', help='Number of steps before starting training')  # TODO: 8e4
 parser.add_argument('--max-gradient-norm', type=float, default=10, metavar='VALUE', help='Max value of gradient L2 norm for gradient clipping')
 parser.add_argument('--evaluate', action='store_true', help='Evaluate only')
 parser.add_argument('--evaluation-interval', type=int, default=1000, metavar='STEPS', help='Number of training steps between evaluations')  # TODO: 25000
@@ -58,8 +57,6 @@ mem = ReplayMemory(args.memory_capacity)
 
 
 # Training setup
-epsilon = args.epsilon_start
-epsilon_decrease = (args.epsilon_start - args.epsilon_end) / args.epsilon_steps
 T, done = 0, True
 
 # Construct validation memory
@@ -85,8 +82,9 @@ else:
   while T < args.T_max:
     if done:
       state, done = Variable(env.reset()), False
+      dqn.reset_noise()  # Draw a new set of noisy weights per episode
 
-    action = dqn.act(state, epsilon)  # Choose an action with ε-greedy
+    action = dqn.act(state)  # Choose an action greedily (with noisy weights)
 
     next_state, reward, done = env.step(action)  # Step
     if args.reward_clip > 0:
@@ -97,16 +95,13 @@ else:
 
     # Train and test
     if T >= args.learn_start:
-      # Only decay greediness ε once learning has started
-      epsilon = max(epsilon - epsilon_decrease, args.epsilon_end)  # Decay greediness ε
-
       if T % args.replay_frequency == 0:
-        dqn.learn(mem)  # Train with double-Q learning
+        dqn.learn(mem)  # Train with n-step distributional double-Q learning
 
       if T % args.evaluation_interval == 0:
         dqn.eval()  # Set DQN (policy network) to evaluation mode
         avg_reward, avg_Q = test(args, T, dqn, val_mem)  # Test
-        print('Evaluation @ T=' + str(T) + ' | ε: ' + str(epsilon) + ' | Avg. reward: ' + str(avg_reward) + ' | Avg. Q: ' + str(avg_Q))
+        print('Evaluation @ T=' + str(T) + ' | Avg. reward: ' + str(avg_reward) + ' | Avg. Q: ' + str(avg_Q))
         dqn.train()  # Set DQN (policy network) back to training mode
 
     # Update target network
