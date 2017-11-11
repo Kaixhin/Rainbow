@@ -11,7 +11,7 @@ from test import test
 
 parser = argparse.ArgumentParser(description='Rainbow')
 parser.add_argument('--seed', type=int, default=123, help='Random seed')
-parser.add_argument('--game', type=str, default='Pong', help='ATARI game')
+parser.add_argument('--game', type=str, default='SpaceInvaders', help='ATARI game')
 parser.add_argument('--T-max', type=int, default=int(5e7), metavar='STEPS', help='Number of training steps')
 parser.add_argument('--max-episode-length', type=int, default=int(1e6), metavar='LENGTH', help='Max episode length')
 parser.add_argument('--history-length', type=int, default=4, metavar='T', help='Number of consecutive states processed')  # TODO: Cyclic buffer
@@ -24,6 +24,7 @@ parser.add_argument('--model', type=str, metavar='PARAMS', help='Pretrained mode
 parser.add_argument('--memory-capacity', type=int, default=10000, metavar='CAPACITY', help='Experience replay memory capacity')  # TODO: 1e6
 parser.add_argument('--replay-frequency', type=int, default=4, metavar='k', help='Frequency of sampling from memory')
 # TODO: Memory prioritisation (w/ alpha and beta hyperparams)?
+parser.add_argument('--multi-step', type=int, default=3, metavar='n', help='Number of steps for multi-step return')
 parser.add_argument('--discount', type=float, default=0.99, metavar='γ', help='Discount factor')
 parser.add_argument('--target-update', type=int, default=1000, metavar='τ', help='Number of steps after which to update target network')  # TODO: 32000
 parser.add_argument('--reward-clip', type=int, default=1, metavar='VALUE', help='Reward clipping (0 to disable)')
@@ -53,22 +54,24 @@ action_space = env.action_space()
 
 # Agent
 dqn = Agent(args, env)
-mem = ReplayMemory(args.memory_capacity)
+mem = ReplayMemory(args.memory_capacity, args.history_length, args.multi_step)
 
 
 # Training setup
 T, done = 0, True
 
 # Construct validation memory
-val_mem = ReplayMemory(args.evaluation_size)
+val_mem = ReplayMemory(args.evaluation_size, args.history_length, args.multi_step)
 while T < args.evaluation_size:
   if done:
     state, done = env.reset(), False
+    val_mem.preappend()  # Set up memory for beginning of episode
 
-  next_state, _, done = env.step(random.randint(0, action_space - 1))
+  val_mem.append(state, None, None)  # No need to store terminal states
+  state, _, done = env.step(random.randint(0, action_space - 1))
   T += 1
-  val_mem.append(state, None, None, None)
-  state = next_state
+  if done:
+    val_mem.append(None, None, None)  # Store empty transitition at end of episode
 
 
 if args.evaluate:
@@ -82,6 +85,7 @@ else:
   while T < args.T_max:
     if done:
       state, done = Variable(env.reset()), False
+      mem.preappend()  # Set up memory for beginning of episode
       dqn.reset_noise()  # Draw a new set of noisy weights per episode
 
     action = dqn.act(state)  # Choose an action greedily (with noisy weights)
@@ -91,7 +95,7 @@ else:
       reward = max(min(reward, args.reward_clip), -args.reward_clip)  # Clip rewards
     T += 1
 
-    mem.append(state.data, action, next_state, reward)  # Append transition to memory
+    mem.append(state.data, action, reward)  # Append transition to memory
 
     # Train and test
     if T >= args.learn_start:
@@ -109,5 +113,7 @@ else:
       dqn.update_target_net()
 
     state = Variable(next_state)
+    if done:
+      mem.append(None, None, None)  # Store empty transitition at end of episode
 
 env.close()

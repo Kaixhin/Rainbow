@@ -3,7 +3,6 @@ import torch
 from torch import nn, optim
 from torch.autograd import Variable
 
-from memory import Transition
 from model import DQN
 
 
@@ -40,14 +39,13 @@ class Agent():
     return (self.policy_net(state.unsqueeze(0)).data * self.support).sum(2).max(1)[1][0]
 
   def learn(self, mem):
-    transitions = mem.sample(self.batch_size)
-    batch = Transition(*zip(*transitions))  # Transpose the batch
+    states, actions, rewards, next_states = mem.sample(self.batch_size)
 
-    states = Variable(torch.stack(batch.state, 0))
-    actions = torch.LongTensor(batch.action)
-    rewards = torch.Tensor(batch.reward)
-    non_final_mask = torch.Tensor(tuple(map(lambda s: s is not None, batch.next_state)))  # Only process non-terminal next states
-    next_states = Variable(torch.stack(tuple(s for s in batch.next_state if s is not None), 0), volatile=True)
+    states = Variable(torch.stack(states, 0))
+    actions = torch.LongTensor(actions)
+    rewards = torch.Tensor(rewards)
+    non_final_mask = torch.Tensor(tuple(map(lambda s: s is not None, next_states)))  # Only process non-terminal next states
+    next_states = Variable(torch.stack(tuple(s for s in next_states if s is not None), 0), volatile=True)
 
     # Calculate current state probabilities
     ps = self.policy_net(states)  # Probabilities p(s_t, ·; θpolicy)
@@ -60,7 +58,8 @@ class Agent():
     dns = self.support.expand_as(pns) * pns  # Distribution d_t+1 = (z, p(s_t+1, ·; θpolicy))
     argmax_indices_ns = dns.sum(2).max(1)[1]  # Perform argmax action selection using policy network: argmax_a[(z, p(s_t+1, a; θpolicy))]
     pns = self.target_net(next_states).data  # Probabilities p(s_t+1, ·; θtarget)
-    pns_a = pns[range(self.batch_size), argmax_indices_ns]  # Double-Q probabilities p(s_t+1, argmax_a[(z, p(s_t+1, a; θpolicy))]; θtarget)
+    pns_a = ps_a.data.new(ps_a.size()).zero_()
+    pns_a.index_copy_(0, non_final_mask.nonzero().squeeze(1), pns[range(pns.size(0)), argmax_indices_ns])  # Double-Q probabilities p(s_t+1, argmax_a[(z, p(s_t+1, a; θpolicy))]; θtarget)
 
     # Compute Tz (Bellman operator T applied to z)
     Tz = rewards.unsqueeze(1) + non_final_mask.unsqueeze(1) * self.discount * self.support.unsqueeze(0)  # Tz = r + γz (accounting for terminal states)
