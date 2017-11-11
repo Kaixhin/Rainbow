@@ -30,11 +30,9 @@ class Agent():
 
     self.optimiser = optim.Adam(self.policy_net.parameters(), lr=args.lr, eps=args.adam_eps)
 
-  # Resets noisy weights in all linear layers
+  # Resets noisy weights in all linear layers (of policy net)
   def reset_noise(self):
-    for name, module in self.policy_net.named_children():
-      if 'fc' in name:
-        module.reset_noise()
+    self.policy_net.reset_noise()
 
   def act(self, state):
     return (self.policy_net(state.unsqueeze(0)).data * self.support).sum(2).max(1)[1][0]
@@ -74,10 +72,10 @@ class Agent():
     m.view(-1).index_add_(0, (u + offset).view(-1), (pns_a * (b - l.float())).view(-1))  # m_u = m_u + p(s_t+n, a*)(b - l)
 
     loss = -torch.sum(Variable(m) * ps_a.log())  # Cross-entropy loss (minimises Kullback-Leibler divergence)
-    # TODO: TD-error clipping?
+    # TODO: "TD-error" clipping?
     self.policy_net.zero_grad()
     loss.backward()
-    nn.utils.clip_grad_norm(self.policy_net.parameters(), self.max_gradient_norm)  # Clamp gradients
+    nn.utils.clip_grad_norm(self.policy_net.parameters(), self.max_gradient_norm)  # Clip gradients (normalising by max value of gradient L2 norm)
     self.optimiser.step()
 
   def update_target_net(self):

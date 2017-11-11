@@ -23,7 +23,8 @@ parser.add_argument('--V-max', type=float, default=10, metavar='V', help='Maximu
 parser.add_argument('--model', type=str, metavar='PARAMS', help='Pretrained model (state dict)')
 parser.add_argument('--memory-capacity', type=int, default=10000, metavar='CAPACITY', help='Experience replay memory capacity')  # TODO: 1e6
 parser.add_argument('--replay-frequency', type=int, default=4, metavar='k', help='Frequency of sampling from memory')
-# TODO: Memory prioritisation (w/ alpha and beta hyperparams)?
+parser.add_argument('--priority-exponent', type=float, default=0.5, metavar='ω', help='Prioritised experience replay exponent')
+parser.add_argument('--priority-weight', type=float, default=0.4, metavar='β', help='Initial prioritised experience replay importance sampling weight')
 parser.add_argument('--multi-step', type=int, default=3, metavar='n', help='Number of steps for multi-step return')
 parser.add_argument('--discount', type=float, default=0.99, metavar='γ', help='Discount factor')
 parser.add_argument('--target-update', type=int, default=1000, metavar='τ', help='Number of steps after which to update target network')  # TODO: 32000
@@ -54,7 +55,7 @@ action_space = env.action_space()
 
 # Agent
 dqn = Agent(args, env)
-mem = ReplayMemory(args.memory_capacity, args.history_length, args.discount, args.multi_step)
+mem = ReplayMemory(args.memory_capacity, args.history_length, args.discount, args.multi_step, args.priority_exponent, args.priority_weight)
 
 
 # Training setup
@@ -70,7 +71,7 @@ while T < args.evaluation_size:
   val_mem.append(state, None, None)  # No need to store terminal states
   state, _, done = env.step(random.randint(0, action_space - 1))
   T += 1
-  if done:
+  if done:  # TODO: Replace need to do this on termination via preappend
     val_mem.append(None, None, None)  # Store empty transitition at end of episode
 
 

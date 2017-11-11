@@ -66,3 +66,8 @@ class DQN(nn.Module):
     x = v.repeat(1, self.action_space) + a - a_mean.repeat(1, self.action_space)  # Combine streams
     p = torch.stack([F.softmax(p) for p in x.chunk(self.action_space, 1)], 1)  # Probabilities with action over second dimension
     return p.clamp(min=1e-8, max=1 - 1e-8)  # Use clipping to prevent NaNs
+
+  def reset_noise(self):
+    for name, module in self.named_children():
+      if 'fc' in name:
+        module.reset_noise()
