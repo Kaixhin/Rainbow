@@ -54,14 +54,14 @@ action_space = env.action_space()
 
 # Agent
 dqn = Agent(args, env)
-mem = ReplayMemory(args.memory_capacity, args.history_length, args.multi_step)
+mem = ReplayMemory(args.memory_capacity, args.history_length, args.discount, args.multi_step)
 
 
 # Training setup
 T, done = 0, True
 
 # Construct validation memory
-val_mem = ReplayMemory(args.evaluation_size, args.history_length, args.multi_step)
+val_mem = ReplayMemory(args.evaluation_size, args.history_length)
 while T < args.evaluation_size:
   if done:
     state, done = env.reset(), False

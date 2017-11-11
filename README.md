@@ -15,8 +15,7 @@ Rainbow: Combining Improvements in Deep Reinforcement Learning [[1]](#references
 **TODO:**
 
 1. Make more efficient experience replay memory
-2. Implement n-step returns
-3. Implement proportional prioritised experience replay
+2. Implement proportional prioritised experience replay
 
 Requirements
 ------------

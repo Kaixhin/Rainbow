@@ -15,6 +15,7 @@ class Agent():
     self.support = torch.linspace(args.V_min, args.V_max, args.atoms)  # Support (range) of z
     self.delta_z = (args.V_max - args.V_min) / (args.atoms - 1)
     self.batch_size = args.batch_size
+    self.n = args.multi_step
     self.discount = args.discount
     self.max_gradient_norm = args.max_gradient_norm
 
@@ -39,30 +40,28 @@ class Agent():
     return (self.policy_net(state.unsqueeze(0)).data * self.support).sum(2).max(1)[1][0]
 
   def learn(self, mem):
-    states, actions, rewards, next_states = mem.sample(self.batch_size)
+    states, actions, returns, next_states = mem.sample(self.batch_size)
 
     states = Variable(torch.stack(states, 0))
     actions = torch.LongTensor(actions)
-    rewards = torch.Tensor(rewards)
-    non_final_mask = torch.Tensor(tuple(map(lambda s: s is not None, next_states)))  # Only process non-terminal next states
-    next_states = Variable(torch.stack(tuple(s for s in next_states if s is not None), 0), volatile=True)
+    returns = torch.Tensor(returns)
+    non_final_mask = torch.Tensor(tuple(map(lambda s: s is not None, next_states)))  # Only process non-terminal nth next states
+    next_states = Variable(torch.stack(tuple(s for s in next_states if s is not None), 0), volatile=True)  # nth next state
 
     # Calculate current state probabilities
     ps = self.policy_net(states)  # Probabilities p(s_t, ·; θpolicy)
     ps_a = ps[range(self.batch_size), actions]  # p(s_t, a_t; θpolicy)
 
-    # TODO: Use n-step distributional loss
-
-    # Calculate next state probabilities
-    pns = self.policy_net(next_states).data  # Probabilities p(s_t+1, ·; θpolicy)
-    dns = self.support.expand_as(pns) * pns  # Distribution d_t+1 = (z, p(s_t+1, ·; θpolicy))
-    argmax_indices_ns = dns.sum(2).max(1)[1]  # Perform argmax action selection using policy network: argmax_a[(z, p(s_t+1, a; θpolicy))]
-    pns = self.target_net(next_states).data  # Probabilities p(s_t+1, ·; θtarget)
+    # Calculate nth next state probabilities
+    pns = self.policy_net(next_states).data  # Probabilities p(s_t+n, ·; θpolicy)
+    dns = self.support.expand_as(pns) * pns  # Distribution d_t+n = (z, p(s_t+n, ·; θpolicy))
+    argmax_indices_ns = dns.sum(2).max(1)[1]  # Perform argmax action selection using policy network: argmax_a[(z, p(s_t+n, a; θpolicy))]
+    pns = self.target_net(next_states).data  # Probabilities p(s_t+n, ·; θtarget)
     pns_a = ps_a.data.new(ps_a.size()).zero_()
-    pns_a.index_copy_(0, non_final_mask.nonzero().squeeze(1), pns[range(pns.size(0)), argmax_indices_ns])  # Double-Q probabilities p(s_t+1, argmax_a[(z, p(s_t+1, a; θpolicy))]; θtarget)
+    pns_a.index_copy_(0, non_final_mask.nonzero().squeeze(1), pns[range(pns.size(0)), argmax_indices_ns])  # Double-Q probabilities p(s_t+n, argmax_a[(z, p(s_t+n, a; θpolicy))]; θtarget)
 
     # Compute Tz (Bellman operator T applied to z)
-    Tz = rewards.unsqueeze(1) + non_final_mask.unsqueeze(1) * self.discount * self.support.unsqueeze(0)  # Tz = r + γz (accounting for terminal states)
+    Tz = returns.unsqueeze(1) + non_final_mask.unsqueeze(1) * (self.discount ** self.n) * self.support.unsqueeze(0)  # Tz = R^n + (γ^n)z (accounting for terminal states)
     Tz = Tz.clamp(min=self.Vmin, max=self.Vmax)  # Clamp between supported values
     # Compute L2 projection of Tz onto fixed support z
     b = (Tz - self.Vmin) / self.delta_z  # b = (Tz - Vmin) / Δz
@@ -71,8 +70,8 @@ class Agent():
     # Distribute probability of Tz
     m = torch.zeros(self.batch_size, self.atoms)
     offset = torch.linspace(0, ((self.batch_size - 1) * self.atoms), self.batch_size).long().unsqueeze(1).expand(self.batch_size, self.atoms)
-    m.view(-1).index_add_(0, (l + offset).view(-1), (pns_a * (u.float() - b)).view(-1))  # m_l = m_l + p(s_t+1, a*)(u - b)
-    m.view(-1).index_add_(0, (u + offset).view(-1), (pns_a * (b - l.float())).view(-1))  # m_u = m_u + p(s_t+1, a*)(b - l)
+    m.view(-1).index_add_(0, (l + offset).view(-1), (pns_a * (u.float() - b)).view(-1))  # m_l = m_l + p(s_t+n, a*)(u - b)
+    m.view(-1).index_add_(0, (u + offset).view(-1), (pns_a * (b - l.float())).view(-1))  # m_u = m_u + p(s_t+n, a*)(b - l)
 
     loss = -torch.sum(Variable(m) * ps_a.log())  # Cross-entropy loss (minimises Kullback-Leibler divergence)
     # TODO: TD-error clipping?
