@@ -59,21 +59,19 @@ dqn = Agent(args, env)
 mem = ReplayMemory(args.memory_capacity, args.history_length, args.discount, args.multi_step, args.priority_exponent, args.priority_weight)
 
 
-# Training setup
-T, done = 0, True
-
 # Construct validation memory
 val_mem = ReplayMemory(args.evaluation_size, args.history_length)
+T, done = 0, True
 while T < args.evaluation_size:
   if done:
     state, done = env.reset(), False
     val_mem.preappend()  # Set up memory for beginning of episode
 
-  val_mem.append(state, None, None)  # No need to store terminal states
+  val_mem.append(state, None, None)
   state, _, done = env.step(random.randint(0, action_space - 1))
   T += 1
-  if done:  # TODO: Replace need to do this on termination via preappend?
-    val_mem.append(None, None, None)  # Store empty transitition at end of episode
+  if done:
+    val_mem.postappend()  # Store empty transitition at end of episode
 
 
 if args.evaluate:
@@ -115,7 +113,7 @@ else:
       dqn.update_target_net()
 
     state = Variable(next_state)
-    if done:  # TODO: Replace need to do this on termination via preappend?:
-      mem.append(None, None, None)  # Store empty transitition at end of episode
+    if done:
+      mem.postappend()  # Store empty transitition at end of episode
 
 env.close()

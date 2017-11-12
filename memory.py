@@ -1,10 +1,7 @@
 import random
-from collections import deque, namedtuple
+from collections import deque
 import torch
 from torch.autograd import Variable
-
-
-Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward'))
 
 
 class ReplayMemory():
@@ -36,15 +33,19 @@ class ReplayMemory():
   def append(self, state, action, reward):
     # Add state, action and reward at time t
     self.timesteps.append(self.t)
-    if state is None:
-      self.states.append(torch.ByteTensor(84, 84).zero_())  # Add blank state (used to replace terminal state)
-      self.nonterminals.append(False)
-    else:
-      self.states.append(state[-1].mul(255).byte())  # Only store last frame and discretise to save memory
-      self.nonterminals.append(True)
+    self.states.append(state[-1].mul(255).byte())  # Only store last frame and discretise to save memory
     self.actions.append(action)
     self.rewards.append(reward)  # Technically from time t + 1, but kept at t for all buffers to be in sync
+    self.nonterminals.append(True)
     self.t += 1
+
+  # Add empty state at end of episode
+  def postappend(self):
+    self.timesteps.append(self.t)
+    self.states.append(torch.ByteTensor(84, 84).zero_())  # Add blank state (used to replace terminal state)
+    self.actions.append(None)
+    self.rewards.append(None)
+    self.nonterminals.append(False)
 
   def sample(self, batch_size):
     # Find indices for valid samples

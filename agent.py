@@ -35,6 +35,7 @@ class Agent():
     self.policy_net.reset_noise()
     self.target_net.reset_noise()
 
+  # Acts based on single state (no batch)
   def act(self, state):
     return (self.policy_net(state.unsqueeze(0)).data * self.support).sum(2).max(1)[1][0]
 
@@ -79,6 +80,7 @@ class Agent():
   def save(self, path):
     torch.save(self.policy_net.state_dict(), os.path.join(path, 'model.pth'))
 
+  # Evaluates Q-value based on single state (no batch)
   def evaluate_q(self, state):
     return (self.policy_net(state.unsqueeze(0)).data * self.support).sum(2).max(1)[0][0]
 

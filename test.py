@@ -24,9 +24,7 @@ def test(args, T, dqn, val_mem, evaluate=False):
   for ep in range(args.evaluation_episodes):
     while True:
       if done:
-        state = Variable(env.reset(), volatile=True)
-        reward_sum = 0
-        done = False
+        state, reward_sum, done = Variable(env.reset(), volatile=True), 0, False
 
       if args.render:
         env.render()
@@ -63,9 +61,7 @@ def test(args, T, dqn, val_mem, evaluate=False):
 
 # Plots min, max and mean + standard deviation bars of a population over time
 def _plot_line(xs, ys_population, title, path=''):
-  max_colour = 'rgb(0, 132, 180)'
-  mean_colour = 'rgb(0, 172, 237)'
-  std_colour = 'rgba(29, 202, 255, 0.2)'
+  max_colour, mean_colour, std_colour = 'rgb(0, 132, 180)', 'rgb(0, 172, 237)', 'rgba(29, 202, 255, 0.2)'
 
   ys = torch.Tensor(ys_population)
   ys_min = ys.min(1)[0].squeeze()
