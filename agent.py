@@ -30,9 +30,10 @@ class Agent():
 
     self.optimiser = optim.Adam(self.policy_net.parameters(), lr=args.lr, eps=args.adam_eps)
 
-  # Resets noisy weights in all linear layers (of policy net)
+  # Resets noisy weights in all linear layers (of policy and target nets)
   def reset_noise(self):
     self.policy_net.reset_noise()
+    self.target_net.reset_noise()
 
   def act(self, state):
     return (self.policy_net(state.unsqueeze(0)).data * self.support).sum(2).max(1)[1][0]

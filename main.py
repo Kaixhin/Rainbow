@@ -87,7 +87,6 @@ else:
     if done:
       state, done = Variable(env.reset()), False
       mem.preappend()  # Set up memory for beginning of episode
-      dqn.reset_noise()  # Draw a new set of noisy weights per episode
 
     action = dqn.act(state)  # Choose an action greedily (with noisy weights)
 
@@ -102,6 +101,7 @@ else:
     if T >= args.learn_start:
       if T % args.replay_frequency == 0:
         dqn.learn(mem)  # Train with n-step distributional double-Q learning
+        dqn.reset_noise()  # Draw a new set of noisy weights after optimisation
 
       if T % args.evaluation_interval == 0:
         dqn.eval()  # Set DQN (policy network) to evaluation mode
