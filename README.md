@@ -12,11 +12,6 @@ Rainbow: Combining Improvements in Deep Reinforcement Learning [[1]](#references
 - [x] Distributional RL [[7]](#references)
 - [x] Noisy Nets [[8]](#references)
 
-**TODO:**
-
-1. Make more efficient experience replay memory
-2. Implement proportional prioritised experience replay
-
 Requirements
 ------------
 

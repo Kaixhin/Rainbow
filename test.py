@@ -42,9 +42,8 @@ def test(args, T, dqn, val_mem, evaluate=False):
   env.close()
 
   # Test Q-values over validation memory
-  for state in val_mem.states:  # TODO: Update once states stored efficiently
-    if state is not None:
-      T_Qs.append(dqn.evaluate_q(Variable(state, volatile=True)))
+  for state in val_mem:  # Iterate over valid states
+    T_Qs.append(dqn.evaluate_q(state))
 
   if not evaluate:
     # Append to results

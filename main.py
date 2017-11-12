@@ -71,7 +71,7 @@ while T < args.evaluation_size:
   val_mem.append(state, None, None)  # No need to store terminal states
   state, _, done = env.step(random.randint(0, action_space - 1))
   T += 1
-  if done:  # TODO: Replace need to do this on termination via preappend
+  if done:  # TODO: Replace need to do this on termination via preappend?
     val_mem.append(None, None, None)  # Store empty transitition at end of episode
 
 
@@ -114,7 +114,7 @@ else:
       dqn.update_target_net()
 
     state = Variable(next_state)
-    if done:
+    if done:  # TODO: Replace need to do this on termination via preappend?:
       mem.append(None, None, None)  # Store empty transitition at end of episode
 
 env.close()

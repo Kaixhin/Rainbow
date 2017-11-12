@@ -39,13 +39,7 @@ class Agent():
     return (self.policy_net(state.unsqueeze(0)).data * self.support).sum(2).max(1)[1][0]
 
   def learn(self, mem):
-    states, actions, returns, next_states = mem.sample(self.batch_size)
-
-    states = Variable(torch.stack(states, 0))
-    actions = torch.LongTensor(actions)
-    returns = torch.Tensor(returns)
-    non_final_mask = torch.Tensor(tuple(map(lambda s: s is not None, next_states)))  # Only process non-terminal nth next states
-    next_states = Variable(torch.stack(tuple(s for s in next_states if s is not None), 0), volatile=True)  # nth next state
+    states, actions, returns, next_states, nonterminals = mem.sample(self.batch_size)
 
     # Calculate current state probabilities
     ps = self.policy_net(states)  # Probabilities p(s_t, ·; θpolicy)
@@ -56,11 +50,11 @@ class Agent():
     dns = self.support.expand_as(pns) * pns  # Distribution d_t+n = (z, p(s_t+n, ·; θpolicy))
     argmax_indices_ns = dns.sum(2).max(1)[1]  # Perform argmax action selection using policy network: argmax_a[(z, p(s_t+n, a; θpolicy))]
     pns = self.target_net(next_states).data  # Probabilities p(s_t+n, ·; θtarget)
-    pns_a = ps_a.data.new(ps_a.size()).zero_()
-    pns_a.index_copy_(0, non_final_mask.nonzero().squeeze(1), pns[range(pns.size(0)), argmax_indices_ns])  # Double-Q probabilities p(s_t+n, argmax_a[(z, p(s_t+n, a; θpolicy))]; θtarget)
+    pns_a = pns[range(self.batch_size), argmax_indices_ns]  # Double-Q probabilities p(s_t+n, argmax_a[(z, p(s_t+n, a; θpolicy))]; θtarget)
+    pns_a *= nonterminals  # Set p = 0 for terminal nth next states TODO Is this correct?
 
     # Compute Tz (Bellman operator T applied to z)
-    Tz = returns.unsqueeze(1) + non_final_mask.unsqueeze(1) * (self.discount ** self.n) * self.support.unsqueeze(0)  # Tz = R^n + (γ^n)z (accounting for terminal states)
+    Tz = returns.unsqueeze(1) + nonterminals * (self.discount ** self.n) * self.support.unsqueeze(0)  # Tz = R^n + (γ^n)z (accounting for terminal states)
     Tz = Tz.clamp(min=self.Vmin, max=self.Vmax)  # Clamp between supported values
     # Compute L2 projection of Tz onto fixed support z
     b = (Tz - self.Vmin) / self.delta_z  # b = (Tz - Vmin) / Δz

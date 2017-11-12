@@ -25,7 +25,6 @@ class Env():
     self.training = True  # Consistent with model training mode
     self.lives = 0  # Life counter (used in DeepMind training)
 
-  # TODO: Move buffer into DQN - return single frames only
   def _reset_buffer(self):
     for t in range(self.window):
       self.buffer.append(torch.zeros(84, 84))
