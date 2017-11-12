@@ -8,6 +8,7 @@ import torch
 logging.disable(logging.INFO)
 
 
+# TODO: Check these - quite probably result in states that are not properly discretised to [0, 255]
 def _state_to_tensor(state):
   gray_img = color.rgb2gray(state)  # TODO: Check image conversion doesn't cause problems
   downsized_img = transform.resize(gray_img, (84, 84), mode='constant')  # TODO: Check resizing doesn't cause problems
