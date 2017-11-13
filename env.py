@@ -8,16 +8,11 @@ import torch
 logging.disable(logging.INFO)
 
 
-# TODO: Check these - quite probably result in states that are not properly discretised to [0, 255]
-def _state_to_tensor(state):
-  gray_img = color.rgb2gray(state)  # TODO: Check image conversion doesn't cause problems
-  downsized_img = transform.resize(gray_img, (84, 84), mode='constant')  # TODO: Check resizing doesn't cause problems
-  return torch.from_numpy(downsized_img).float()  # Return 2D image tensor
-
-
 class Env():
   def __init__(self, args):
     super().__init__()
+    self.dtype = torch.cuda.FloatTensor if args.cuda else torch.FloatTensor
+
     self.env = gym.make(args.game + 'Deterministic-v4')
     self.window = args.history_length  # Number of frames to concatenate
     self.buffer = deque([], maxlen=args.history_length)
@@ -26,9 +21,16 @@ class Env():
     self.training = True  # Consistent with model training mode
     self.lives = 0  # Life counter (used in DeepMind training)
 
+  # TODO: Check these - quite probably result in states that are not properly discretised to [0, 255]
+  def _state_to_tensor(self, state):
+    gray_img = color.rgb2gray(state)  # TODO: Check image conversion doesn't cause problems
+    downsized_img = transform.resize(gray_img, (84, 84), mode='constant')  # TODO: Check resizing doesn't cause problems
+    state = torch.from_numpy(downsized_img).type(self.dtype)  # 2D image tensor
+    return state
+
   def _reset_buffer(self):
     for t in range(self.window):
-      self.buffer.append(torch.zeros(84, 84))
+      self.buffer.append(self.dtype(84, 84).zero_())
 
   def reset(self):
     # Reset internals
@@ -38,14 +40,14 @@ class Env():
     # Process and return initial state
     observation = self.env.reset()
     # TODO: 30 random no-op starts?
-    observation = _state_to_tensor(observation)
+    observation = self._state_to_tensor(observation)
     self.buffer.append(observation)
     return torch.stack(self.buffer, 0)
 
   def step(self, action):
     # Process state
     observation, reward, done, _ = self.env.step(action)
-    observation = _state_to_tensor(observation)
+    observation = self._state_to_tensor(observation)
     self.buffer.append(observation)
     # Detect loss of life as terminal in training mode
     if self.training:

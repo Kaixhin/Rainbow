@@ -11,6 +11,7 @@ from test import test
 
 parser = argparse.ArgumentParser(description='Rainbow')
 parser.add_argument('--seed', type=int, default=123, help='Random seed')
+parser.add_argument('--disable-cuda', action='store_true', help='Disable CUDA')
 parser.add_argument('--game', type=str, default='SpaceInvaders', help='ATARI game')
 parser.add_argument('--T-max', type=int, default=int(5e7), metavar='STEPS', help='Number of training steps')
 parser.add_argument('--max-episode-length', type=int, default=int(1e6), metavar='LENGTH', help='Max episode length')
@@ -47,7 +48,14 @@ print(' ' * 26 + 'Options')
 for k, v in vars(args).items():
   print(' ' * 26 + k + ': ' + str(v))
 assert args.batch_size < args.learn_start  # TODO: Add in more checks? Quite a lot could be done
-torch.manual_seed(args.seed)
+args.cuda = torch.cuda.is_available() and not args.disable_cuda
+random.seed(args.seed)
+torch.manual_seed(random.randint(1, 10000))
+if args.cuda:
+  torch.cuda.manual_seed(random.randint(1, 10000))
+
+
+# Environment
 env = Env(args)
 env.seed(args.seed)
 env.train()
@@ -56,11 +64,11 @@ action_space = env.action_space()
 
 # Agent
 dqn = Agent(args, env)
-mem = ReplayMemory(args.memory_capacity, args.history_length, args.discount, args.multi_step, args.priority_exponent, args.priority_weight)
+mem = ReplayMemory(args, args.memory_capacity)
 
 
 # Construct validation memory
-val_mem = ReplayMemory(args.evaluation_size, args.history_length)
+val_mem = ReplayMemory(args, args.evaluation_size)
 T, done = 0, True
 while T < args.evaluation_size:
   if done:
@@ -85,6 +93,7 @@ else:
   while T < args.T_max:
     if done:
       state, done = Variable(env.reset()), False
+      dqn.reset_noise()  # Draw a new set of noisy weights for each episode (better for before learning starts)
       mem.preappend()  # Set up memory for beginning of episode
 
     action = dqn.act(state)  # Choose an action greedily (with noisy weights)

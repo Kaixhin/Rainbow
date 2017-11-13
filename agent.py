@@ -29,6 +29,10 @@ class Agent():
     self.target_net.eval()
 
     self.optimiser = optim.Adam(self.policy_net.parameters(), lr=args.lr, eps=args.adam_eps)
+    if args.cuda:
+      self.policy_net.cuda()
+      self.target_net.cuda()
+      self.support = self.support.cuda()
 
   # Resets noisy weights in all linear layers (of policy and target nets)
   def reset_noise(self):
@@ -62,8 +66,8 @@ class Agent():
     l, u = b.floor().long(), b.ceil().long()
 
     # Distribute probability of Tz
-    m = torch.zeros(self.batch_size, self.atoms)
-    offset = torch.linspace(0, ((self.batch_size - 1) * self.atoms), self.batch_size).long().unsqueeze(1).expand(self.batch_size, self.atoms)
+    m = states.data.new(self.batch_size, self.atoms).zero_()
+    offset = torch.linspace(0, ((self.batch_size - 1) * self.atoms), self.batch_size).long().unsqueeze(1).expand(self.batch_size, self.atoms).type_as(actions)
     m.view(-1).index_add_(0, (l + offset).view(-1), (pns_a * (u.float() - b)).view(-1))  # m_l = m_l + p(s_t+n, a*)(u - b)
     m.view(-1).index_add_(0, (u + offset).view(-1), (pns_a * (b - l.float())).view(-1))  # m_u = m_u + p(s_t+n, a*)(b - l)
 
