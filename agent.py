@@ -56,7 +56,7 @@ class Agent():
     argmax_indices_ns = dns.sum(2).max(1)[1]  # Perform argmax action selection using policy network: argmax_a[(z, p(s_t+n, a; θpolicy))]
     pns = self.target_net(next_states).data  # Probabilities p(s_t+n, ·; θtarget)
     pns_a = pns[range(self.batch_size), argmax_indices_ns]  # Double-Q probabilities p(s_t+n, argmax_a[(z, p(s_t+n, a; θpolicy))]; θtarget)
-    pns_a *= nonterminals  # Set p = 0 for terminal nth next states TODO Is this correct?
+    pns_a *= nonterminals  # Set p = 0 for terminal nth next states as all possible expected returns = expected reward at final transition
 
     # Compute Tz (Bellman operator T applied to z)
     Tz = returns.unsqueeze(1) + nonterminals * (self.discount ** self.n) * self.support.unsqueeze(0)  # Tz = R^n + (γ^n)z (accounting for terminal states)
