@@ -114,12 +114,23 @@ class ReplayMemory():
     self.priorities.append(0)
 
   def sample(self, batch_size):
+    # Find indices based on sampling from a probability distribution defined by normalised priorities
+    p_total = self.sum_tree.tree[0]  # Sum over all priorities stored in root node
+    p_bins = torch.linspace(0, p_total, batch_size + 1)  # Create a batch size + 1 number of equally-sized bins
+    probs = [random.uniform(p_bins[i], p_bins[i + 1]) for i in range(batch_size)]  # Sample values uniformly from this range (unnormalised probabilities)
+    inds = probs  # TODO: Retrieve indices of corresponding transitions
+    probs = torch.Tensor(probs) / p_total  # Calculate normalised probabilities
+    weights = (self.capacity * probs) ** -self.priority_weight  # Compute importance-sampling weights
+    weights = weights / weights.max()   # Normalise by max weight
+
+    """
     # Find indices for valid samples
     valid = list(map(lambda x: x >= 0, self.timesteps))  # Valid frames by timestep
     # TODO: Alternative is to allow terminal states (- n+1) but truncate multi-step returns appropriately
     valid = [a and b for a, b in zip(valid, valid[self.n:] + [False] * self.n)]  # Cannot use terminal states (- n+1)/state at end of memory
     valid[:self.history - 1] = [False] * (self.history - 1)  # Cannot form stack from initial frames
     inds = random.sample([i for i, v in zip(range(len(valid)), valid) if v], batch_size)
+    """
 
     # Create stack of states and nth next states
     state_stack, next_state_stack = [], []
@@ -139,7 +150,7 @@ class ReplayMemory():
 
     nonterminals = self.dtype_float([self.nonterminals[i + self.n] for i in inds]).unsqueeze(1)  # Mask for non-terminal nth next states
 
-    return inds, states, actions, returns, next_states, nonterminals
+    return inds, states, actions, returns, next_states, nonterminals, weights
 
   def update_priorities(self, inds, priorities):
     pass  # TODO: Update priorities
