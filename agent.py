@@ -17,6 +17,7 @@ class Agent():
     self.batch_size = args.batch_size
     self.n = args.multi_step
     self.discount = args.discount
+    self.priority_exponent = args.priority_exponent
     self.max_gradient_norm = args.max_gradient_norm
 
     self.policy_net = DQN(args, self.action_space)
@@ -44,7 +45,7 @@ class Agent():
     return (self.policy_net(state.unsqueeze(0)).data * self.support).sum(2).max(1)[1][0]
 
   def learn(self, mem):
-    states, actions, returns, next_states, nonterminals = mem.sample(self.batch_size)
+    inds, states, actions, returns, next_states, nonterminals = mem.sample(self.batch_size)
 
     # Calculate current state probabilities
     ps = self.policy_net(states)  # Probabilities p(s_t, ·; θpolicy)
@@ -71,12 +72,13 @@ class Agent():
     m.view(-1).index_add_(0, (l + offset).view(-1), (pns_a * (u.float() - b)).view(-1))  # m_l = m_l + p(s_t+n, a*)(u - b)
     m.view(-1).index_add_(0, (u + offset).view(-1), (pns_a * (b - l.float())).view(-1))  # m_u = m_u + p(s_t+n, a*)(b - l)
 
-    loss = -torch.sum(Variable(m) * ps_a.log())  # Cross-entropy loss (minimises Kullback-Leibler divergence)
-    # TODO: "TD-error" clipping?
+    loss = -torch.sum(Variable(m) * ps_a.log(), 1)  # Cross-entropy loss (minimises Kullback-Leibler divergence)
     self.policy_net.zero_grad()
-    loss.backward()
+    loss.mean().backward()
     nn.utils.clip_grad_norm(self.policy_net.parameters(), self.max_gradient_norm)  # Clip gradients (normalising by max value of gradient L2 norm)
     self.optimiser.step()
+
+    mem.update_priorities(inds, loss.data.abs().pow(self.priority_exponent))  # Update priorities of sampled transitions
 
   def update_target_net(self):
     self.target_net.load_state_dict(self.policy_net.state_dict())

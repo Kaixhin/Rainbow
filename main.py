@@ -65,6 +65,7 @@ action_space = env.action_space()
 # Agent
 dqn = Agent(args, env)
 mem = ReplayMemory(args, args.memory_capacity, prioritised=True)
+priority_weight_increase = (1 - args.priority_weight) / (args.T_max - args.learn_start)
 
 
 # Construct validation memory
@@ -108,6 +109,7 @@ else:
     # Train and test
     if T >= args.learn_start:
       if T % args.replay_frequency == 0:
+        mem.priority_weight = min(mem.priority_weight + priority_weight_increase, 1)  # Anneal importance sampling exponent β to 1
         dqn.learn(mem)  # Train with n-step distributional double-Q learning
         dqn.reset_noise()  # Draw a new set of noisy weights after optimisation
 
