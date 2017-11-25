@@ -6,22 +6,10 @@ from torch.autograd import Variable
 
 
 class SegmentTree():
-  def __init__(self, array):
-    self.tree = [None] * 2 ** (math.ceil(math.log(len(array), 2)) + 1)  # Tree structure (represented by an array)
+  def __init__(self, size):
+    # Tree structure (represented by an array)
+    self.tree = [0] * 2 ** (math.ceil(math.log(size, 2)) + 1)  # Initialise with zeros as no priorities at start to build tree
     self.leaf_width = len(self.tree) // 2 - 1  # Width of bottom layer (leaves)
-    self._build(1, 0, self.leaf_width, array)  # Build tree
-
-  def _build(self, node, left, right, array):
-    if left == right:
-      try:
-        self.tree[node] = array[left]  # Leaf node is raw value
-      except IndexError:
-        self.tree[node] = 0  # TODO: Set to INF?
-    else:
-      left_child, right_child, middle = 2 * node, 2 * node + 1, (left + right) // 2
-      self._build(left_child, left, middle, array)  # Recurse on left
-      self._build(right_child, middle + 1, right, array)  # Recurse on right
-      self.tree[node] = self.tree[left_child] + self.tree[right_child]  # Internal node is sum of its children
 
   def _query(self, node, i, j, left, right):
     if left >= i and right <= j:
@@ -80,7 +68,8 @@ class ReplayMemory():
     self.prioritised = prioritised
     self.priorities = deque([], maxlen=capacity)
     if prioritised:
-      self.sum_tree = SegmentTree([0] * capacity)
+      self.sum_tree = SegmentTree(capacity)
+      # TODO: Create structure that maps (potentially) cycling transitions to fixed array of tree
 
   # Add empty states to prepare for new episode
   def preappend(self):
