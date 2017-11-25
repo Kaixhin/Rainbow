@@ -1,3 +1,4 @@
+import math
 import random
 from collections import deque
 import torch
@@ -5,7 +6,7 @@ from torch.autograd import Variable
 
 
 class ReplayMemory():
-  def __init__(self, args, capacity):
+  def __init__(self, args, capacity, prioritised=False):
     self.dtype_byte = torch.cuda.ByteTensor if args.cuda else torch.ByteTensor
     self.dtype_long = torch.cuda.LongTensor if args.cuda else torch.LongTensor
     self.dtype_float = torch.cuda.FloatTensor if args.cuda else torch.FloatTensor
@@ -22,6 +23,12 @@ class ReplayMemory():
     self.rewards = deque([], maxlen=capacity)
     self.timesteps = deque([], maxlen=capacity)
     self.nonterminals = deque([], maxlen=capacity)  # Non-terminal states
+
+    # Set up prioritised experience replay if needed
+    self.prioritised = prioritised
+    if prioritised:
+      self.priorities = deque([0] * capacity, maxlen=capacity)
+      self.sum_tree = SegmentTree(self.priorities)
 
   # Add empty states to prepare for new episode
   def preappend(self):
@@ -54,6 +61,7 @@ class ReplayMemory():
   def sample(self, batch_size):
     # Find indices for valid samples
     valid = list(map(lambda x: x >= 0, self.timesteps))  # Valid frames by timestep
+    # TODO: Alternative is to allow terminal states (- n+1) but truncate multi-step returns appropriately
     valid = [a and b for a, b in zip(valid, valid[self.n:] + [False] * self.n)]  # Cannot use terminal states (- n+1)/state at end of memory
     valid[:self.history - 1] = [False] * (self.history - 1)  # Cannot form stack from initial frames
     inds = random.sample([i for i, v in zip(range(len(valid)), valid) if v], batch_size)
@@ -100,4 +108,57 @@ class ReplayMemory():
     self.current_ind += 1
     return state
 
+
 # TODO: Prioritised experience replay memory; disable if not needed (for validation memory)
+class SegmentTree():
+  def __init__(self, array):
+    self.tree = [None] * 2 ** (math.ceil(math.log(len(array), 2)) + 1)  # Tree structure (represented by an array)
+    self.leaf_width = len(self.tree) // 2 - 1  # Width of bottom layer (leaves)
+    self._build(1, 0, self.leaf_width, array)  # Build tree
+
+  def _build(self, node, left, right, array):
+    print(node, left, right)
+    if left == right:
+      try:
+        self.tree[node] = array[left]  # Leaf node is raw value
+      except IndexError:
+        self.tree[node] = 0  # TODO: Set to INF?
+    else:
+      left_child, right_child, middle = 2 * node, 2 * node + 1, (left + right) // 2
+      self._build(left_child, left, middle, array)  # Recurse on left
+      self._build(right_child, middle + 1, right, array)  # Recurse on right
+      self.tree[node] = self.tree[left_child] + self.tree[right_child]  # Internal node is sum of its children
+
+  def _query(self, node, i, j, left, right):
+    if left >= i and right <= j:
+      return self.tree[node]
+    elif j < left or i > right:
+      return None
+    else:
+      left_child, right_child, middle = 2 * node, 2 * node + 1, (left + right) // 2
+      left = self._query(left_child, i, j, left, middle)
+      right = self._query(right_child, i, j, middle + 1, right)
+      if left is None and right is None:
+        return None  # TODO: Return INF?
+      elif left is not None and right is not None:
+        return min(left, right)
+      elif left is None:
+        return right
+      else:
+        return left
+
+  def query(self, i, j):
+    return self._query(1, i, j, 0, self.leaf_width)
+
+  def _update(self, node, i, value, left, right):
+    if left == i and right == i:
+      self.tree[node] = value
+    elif i < left or i > right:
+      return
+    else:
+      left_child, right_child, middle = 2 * node, 2 * node + 1, (left + right) // 2
+      self._update(left_child, i, value, left, middle)
+      self._update(right_child, i, value, middle + 1, right)
+
+  def update(self, i, value):
+    self._update(1, i, value, 0, self.leaf_width)

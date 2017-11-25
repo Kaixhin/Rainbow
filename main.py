@@ -64,7 +64,7 @@ action_space = env.action_space()
 
 # Agent
 dqn = Agent(args, env)
-mem = ReplayMemory(args, args.memory_capacity)
+mem = ReplayMemory(args, args.memory_capacity, prioritised=True)
 
 
 # Construct validation memory
