@@ -142,7 +142,7 @@ class ReplayMemory():
     return inds, states, actions, returns, next_states, nonterminals, weights
 
   def update_priorities(self, inds, priorities):
-    pass  # TODO: Update priorities
+    [self.sum_tree.update(i, priority) for i, priority in zip(inds, priorities)]
 
   # Set up internal state for iterator
   def __iter__(self):

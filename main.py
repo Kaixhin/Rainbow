@@ -109,7 +109,7 @@ else:
     # Train and test
     if T >= args.learn_start:
       if T % args.replay_frequency == 0:
-        mem.priority_weight = min(mem.priority_weight + priority_weight_increase, 1)  # Anneal importance sampling exponent β to 1
+        mem.priority_weight = min(mem.priority_weight + priority_weight_increase, 1)  # Anneal importance sampling weight β to 1
         dqn.learn(mem)  # Train with n-step distributional double-Q learning
         dqn.reset_noise()  # Draw a new set of noisy weights after optimisation
 
