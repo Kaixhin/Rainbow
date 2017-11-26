@@ -76,7 +76,7 @@ while T < args.evaluation_size:
     state, done = env.reset(), False
     val_mem.preappend()  # Set up memory for beginning of episode
 
-  val_mem.append(state, None, None)
+  val_mem.append(state, None, 0)
   state, _, done = env.step(random.randint(0, action_space - 1))
   T += 1
   if done:

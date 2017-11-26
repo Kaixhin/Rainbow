@@ -11,6 +11,7 @@ class SumTree():
     self.size = size
     self.tree = [0] * (2 * size - 1)  # Initialise tree with zeros as no priorities at start to build tree
     self.data = [0] * size  # Wrap-around cyclic buffer
+    self.max = 0  # Store max value for fast retrieval
 
   def _propagate(self, index, update):
     parent = (index - 1) // 2
@@ -20,14 +21,16 @@ class SumTree():
 
   def update(self, index, value):
     update = value - self.tree[index]
-    self.tree[index] = value
-    self._propagate(index, update)
+    self.tree[index] = value  # Set new value
+    self._propagate(index, update)  # Propagate change
+    self.max = max(self.max, value)  # Update max
 
   def append(self, value):
     self.data[self.index] = value  # Store value in underlying data structure
     self.update(self.index + self.size - 1, value)  # Update tree
-    self.index = (self.index + 1) % self.size
+    self.index = (self.index + 1) % self.size  # Update index
 
+  # Searches for the location of a value
   def _retrieve(self, index, value):
     left, right = 2 * index + 1, 2 * index + 2
     if left >= len(self.tree):
@@ -37,10 +40,11 @@ class SumTree():
     else:
       return self._retrieve(right, value - self.tree[left])
 
+  # Searches for a value and returns location and other data
   def get(self, value):
     index = self._retrieve(0, value)  # Search for index of item from root
     data_index = index - self.size + 1
-    return (index, self.tree[index], self.data[data_index])
+    return (data_index, index, self.tree[index])  # Return data index, tree index, priority
 
   def total(self):
     return self.tree[0]
@@ -85,8 +89,7 @@ class ReplayMemory():
     self.rewards.append(reward)  # Technically from time t + 1, but kept at t for all buffers to be in sync
     self.nonterminals.append(True)
     self.t += 1
-    self.priorities.append(abs(reward))  # Store new transition with absolute reward (by convention should be maximum priority)
-    # For priority storage above see: https://jaromiru.com/2016/11/07/lets-make-a-dqn-double-learning-and-prioritized-experience-replay/
+    self.priorities.append(max(self.priorities.max, 1))  # Store new transition with maximum priority (or use initial priority 1)
 
   # Add empty state at end of episode
   def postappend(self):
@@ -98,17 +101,17 @@ class ReplayMemory():
     self.priorities.append(0)  # Store zero priority
 
   def sample(self, batch_size):
-    segment = self.priorities.total() / batch_size  # Batch size number of segments, based on sum over all probabilities
+    p_total = self.priorities.total()  # Retrieve sum of all priorities (used to create a normalised probability distribution)
+    segment = p_total / batch_size  # Batch size number of segments, based on sum over all probabilities
     samples = [random.uniform(i * segment, (i + 1) * segment) for i in range(batch_size)]  # Uniformly sample an element from each segment
-    print(samples)
-    batch = [self.priorities.get(s) for s in samples]  # Retrive samples
-    print(batch)
-    quit()
-
+    batch = [self.priorities.get(s) for s in samples]  # Retrieve samples from tree
+    idxs, tree_idxs, probs = zip(*batch)  # Unpack data indices, tree indices, unnormalised probabilities (priorities)
     probs = torch.Tensor(probs) / p_total  # Calculate normalised probabilities
-    weights = (self.capacity * probs) ** -self.priority_weight  # Compute importance-sampling weights
-    weights = weights / weights.max()   # Normalise by max weight
+    weights = (self.capacity * probs) ** -self.priority_weight  # Compute importance-sampling weights w
+    weights = weights / weights.max()   # Normalise by max importance-sampling weight
 
+    # TODO: Convert buffer idxs into deque idxs
+    # TODO: Make sure samples are valid
     """
     # Find indices for valid samples
     valid = list(map(lambda x: x >= 0, self.timesteps))  # Valid frames by timestep
@@ -117,8 +120,6 @@ class ReplayMemory():
     valid[:self.history - 1] = [False] * (self.history - 1)  # Cannot form stack from initial frames
     idxs = random.sample([i for i, v in zip(range(len(valid)), valid) if v], batch_size)
     """
-
-    # TODO: Convert buffer idxs into deque idxs
 
     # Create stack of states and nth next states
     state_stack, next_state_stack = [], []
@@ -138,10 +139,10 @@ class ReplayMemory():
 
     nonterminals = self.dtype_float([self.nonterminals[i + self.n] for i in idxs]).unsqueeze(1)  # Mask for non-terminal nth next states
 
-    return idxs, states, actions, returns, next_states, nonterminals, weights
+    return tree_idxs, states, actions, returns, next_states, nonterminals, weights
 
-  def update_priorities(self, inds, priorities):
-    [self.sum_tree.update(i, priority) for i, priority in zip(inds, priorities)]
+  def update_priorities(self, idxs, priorities):
+    [self.sum_tree.update(idx, priority) for idx, priority in zip(idxs, priorities)]
 
   # Set up internal state for iterator
   def __iter__(self):
