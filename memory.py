@@ -106,7 +106,7 @@ class ReplayMemory():
     samples = [random.uniform(i * segment, (i + 1) * segment) for i in range(batch_size)]  # Uniformly sample an element from each segment
     batch = [self.priorities.get(s) for s in samples]  # Retrieve samples from tree
     idxs, tree_idxs, probs = zip(*batch)  # Unpack data indices, tree indices, unnormalised probabilities (priorities)
-    probs = torch.Tensor(probs) / p_total  # Calculate normalised probabilities
+    probs = Variable(torch.Tensor(probs)) / p_total  # Calculate normalised probabilities
     weights = (self.capacity * probs) ** -self.priority_weight  # Compute importance-sampling weights w
     weights = weights / weights.max()   # Normalise by max importance-sampling weight
 
@@ -142,7 +142,7 @@ class ReplayMemory():
     return tree_idxs, states, actions, returns, next_states, nonterminals, weights
 
   def update_priorities(self, idxs, priorities):
-    [self.sum_tree.update(idx, priority) for idx, priority in zip(idxs, priorities)]
+    [self.priorities.update(idx, priority) for idx, priority in zip(idxs, priorities)]
 
   # Set up internal state for iterator
   def __iter__(self):
