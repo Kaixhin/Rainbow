@@ -1,4 +1,3 @@
-import math
 import random
 from collections import deque
 import torch
@@ -8,71 +7,47 @@ from torch.autograd import Variable
 # Segment tree data structure where parent node values are sum of children node values
 class SumTree():
   def __init__(self, size):
-    # Tree structure (represented by an array)
-    self.tree = [0] * 2 ** (math.ceil(math.log(size, 2)) + 1)  # Initialise with zeros as no priorities at start to build tree
-    self.leaf_width = len(self.tree) // 2 - 1  # Width of bottom layer (leaves)
-
-  def _query(self, node, i, j, left, right):
-    if left >= i and right <= j:
-      return self.tree[node]
-    elif j < left or i > right:
-      return None
-    else:
-      left_child, right_child, middle = 2 * node, 2 * node + 1, (left + right) // 2
-      left = self._query(left_child, i, j, left, middle)
-      right = self._query(right_child, i, j, middle + 1, right)
-      if left is None and right is None:
-        return 0  # TODO: Return 0, INF or None?
-      elif left is not None and right is not None:
-        return left + right
-      elif left is None:
-        return right
-      else:
-        return left
-
-  def query(self, i, j):
-    return self._query(0, i, j, 0, self.leaf_width)  # Recursively search from root
-
-  def _update(self, node, i, value, left, right):
-    if left == i and right == i:
-      self.tree[node] = value  # Update leaf node
-    elif i < left or i > right:
-      return
-    else:
-      left_child, right_child, middle = 2 * node, 2 * node + 1, (left + right) // 2
-      self._update(left_child, i, value, left, middle)  # Update left child
-      self._update(right_child, i, value, middle + 1, right)  # Update right child
-      self.tree[node] = self.tree[left_child] + self.tree[right_child]  # Update parent as sum of children
-
-  def update(self, i, value):
-    self._update(0, i, value, 0, self.leaf_width)  # Recursively update from root
-
-
-# Cyclic buffer (where appends wrap around so that the index of only one element changes)
-class CyclicBuffer():
-  def __init__(self, size):
-    self.size = size
     self.index = 0
-    self.arr = [0] * size  # Use "empty" integer array
-    # TODO: Deal with insertion of element with max priority more efficiently
+    self.size = size
+    self.tree = [0] * (2 * size - 1)  # Initialise tree with zeros as no priorities at start to build tree
+    self.data = [0] * size  # Wrap-around cyclic buffer
 
-  def append(self, item):
-    index = self.index
-    self.arr[index] = item
-    self.index = (index + 1) % self.size  # Index for next item wraps around to 0
-    return index  # Return index utilised
+  def _propagate(self, index, update):
+    parent = (index - 1) // 2
+    self.tree[parent] += update  # Propagate change in value rather than absolute value
+    if parent != 0:
+      self._propagate(parent, update)
 
-  def __getitem__(self, key):
-    return self.arr[key]
-  """
-  # Perform indexing as if underlying implementation were deque (no need for setting as only append used)
-  def __getitem__(self, key):
-    return (self.arr[self.index:] + self.arr[:self.index])[key]  # Creates new array at each call, very expensive
-  """
+  def update(self, index, value):
+    update = value - self.tree[index]
+    self.tree[index] = value
+    self._propagate(index, update)
+
+  def append(self, value):
+    self.data[self.index] = value  # Store value in underlying data structure
+    self.update(self.index + self.size - 1, value)  # Update tree
+    self.index = (self.index + 1) % self.size
+
+  def _retrieve(self, index, value):
+    left, right = 2 * index + 1, 2 * index + 2
+    if left >= len(self.tree):
+      return index
+    elif value <= self.tree[left]:
+      return self._retrieve(left, value)
+    else:
+      return self._retrieve(right, value - self.tree[left])
+
+  def get(self, value):
+    index = self._retrieve(0, value)  # Search for index of item from root
+    data_index = index - self.size + 1
+    return (index, self.tree[index], self.data[data_index])
+
+  def total(self):
+    return self.tree[0]
 
 
 class ReplayMemory():
-  def __init__(self, args, capacity, prioritised=False):
+  def __init__(self, args, capacity):
     self.dtype_byte = torch.cuda.ByteTensor if args.cuda else torch.ByteTensor
     self.dtype_long = torch.cuda.LongTensor if args.cuda else torch.LongTensor
     self.dtype_float = torch.cuda.FloatTensor if args.cuda else torch.FloatTensor
@@ -88,12 +63,7 @@ class ReplayMemory():
     self.rewards = deque([], maxlen=capacity)
     self.timesteps = deque([], maxlen=capacity)
     self.nonterminals = deque([], maxlen=capacity)  # Non-terminal states
-
-    # Set up prioritised experience replay if needed
-    self.prioritised = prioritised
-    if prioritised:
-      self.priorities = CyclicBuffer(capacity)  # Store priorities in a way that only the index of one element is updated per append
-      self.sum_tree = SumTree(capacity)
+    self.priorities = SumTree(capacity)  # Store priorities in a wrap-around cyclic buffer within a sum tree
 
   # Add empty states to prepare for new episode
   def preappend(self):
@@ -105,9 +75,7 @@ class ReplayMemory():
       self.actions.append(None)
       self.rewards.append(None)
       self.nonterminals.append(True)
-      if self.prioritised:
-        p_index = self.priorities.append(0)  # Store zero priority
-        self.sum_tree.update(p_index, 0)
+      self.priorities.append(0)  # Store zero priority
 
   def append(self, state, action, reward):
     # Add state, action and reward at time t
@@ -117,10 +85,8 @@ class ReplayMemory():
     self.rewards.append(reward)  # Technically from time t + 1, but kept at t for all buffers to be in sync
     self.nonterminals.append(True)
     self.t += 1
-    if self.prioritised:
-      max_priority = max(max(self.priorities), 1e-8)  # Use max of max priority or small constant
-      p_index = self.priorities.append(max_priority)  # Store new transition with maximum priority
-      self.sum_tree.update(p_index, max_priority)
+    self.priorities.append(abs(reward))  # Store new transition with absolute reward (by convention should be maximum priority)
+    # For priority storage above see: https://jaromiru.com/2016/11/07/lets-make-a-dqn-double-learning-and-prioritized-experience-replay/
 
   # Add empty state at end of episode
   def postappend(self):
@@ -129,19 +95,16 @@ class ReplayMemory():
     self.actions.append(None)
     self.rewards.append(None)
     self.nonterminals.append(False)
-    if self.prioritised:
-      p_index = self.priorities.append(0)  # Store zero priority
-      self.sum_tree.update(p_index, 0)
+    self.priorities.append(0)  # Store zero priority
 
   def sample(self, batch_size):
-    # Find indices based on sampling from a probability distribution defined by normalised priorities
-    p_total = self.sum_tree.tree[0]  # Sum over all priorities stored in root node
-    p_bins = torch.linspace(0, p_total, batch_size + 1)  # Create a batch size + 1 number of equally-sized bins
-    probs = [random.uniform(p_bins[i], p_bins[i + 1]) for i in range(batch_size)]  # Sample values uniformly from this range (unnormalised probabilities)
-    print(probs)
-    inds = [self.sum_tree.query(p, p) for p in probs]  # TODO: Retrieve indices of corresponding transitions
-    print(inds)
+    segment = self.priorities.total() / batch_size  # Batch size number of segments, based on sum over all probabilities
+    samples = [random.uniform(i * segment, (i + 1) * segment) for i in range(batch_size)]  # Uniformly sample an element from each segment
+    print(samples)
+    batch = [self.priorities.get(s) for s in samples]  # Retrive samples
+    print(batch)
     quit()
+
     probs = torch.Tensor(probs) / p_total  # Calculate normalised probabilities
     weights = (self.capacity * probs) ** -self.priority_weight  # Compute importance-sampling weights
     weights = weights / weights.max()   # Normalise by max weight
@@ -152,28 +115,30 @@ class ReplayMemory():
     # TODO: Alternative is to allow terminal states (- n+1) but truncate multi-step returns appropriately
     valid = [a and b for a, b in zip(valid, valid[self.n:] + [False] * self.n)]  # Cannot use terminal states (- n+1)/state at end of memory
     valid[:self.history - 1] = [False] * (self.history - 1)  # Cannot form stack from initial frames
-    inds = random.sample([i for i, v in zip(range(len(valid)), valid) if v], batch_size)
+    idxs = random.sample([i for i, v in zip(range(len(valid)), valid) if v], batch_size)
     """
+
+    # TODO: Convert buffer idxs into deque idxs
 
     # Create stack of states and nth next states
     state_stack, next_state_stack = [], []
     for h in reversed(range(self.history)):
-      state_stack.append(torch.stack([self.states[i - h] for i in inds], 0))
-      next_state_stack.append(torch.stack([self.states[i + self.n - h] for i in inds], 0))  # nth next state
+      state_stack.append(torch.stack([self.states[i - h] for i in idxs], 0))
+      next_state_stack.append(torch.stack([self.states[i + self.n - h] for i in idxs], 0))  # nth next state
     states = Variable(torch.stack(state_stack, 1).type(self.dtype_float).div_(255))  # Un-discretise
     next_states = Variable(torch.stack(next_state_stack, 1).type(self.dtype_float).div_(255), volatile=True)
 
-    actions = self.dtype_long([self.actions[i] for i in inds])
+    actions = self.dtype_long([self.actions[i] for i in idxs])
 
     # Calculate truncated n-step discounted return R^n = Σ_k=0->n-1 (γ^k)R_t+k+1
-    returns = [self.rewards[i] for i in inds]
+    returns = [self.rewards[i] for i in idxs]
     for n in range(1, self.n):
-      returns = [R + self.discount ** n * self.rewards[i + n] for R, i in zip(returns, inds)]
+      returns = [R + self.discount ** n * self.rewards[i + n] for R, i in zip(returns, idxs)]
     returns = self.dtype_float(returns)
 
-    nonterminals = self.dtype_float([self.nonterminals[i + self.n] for i in inds]).unsqueeze(1)  # Mask for non-terminal nth next states
+    nonterminals = self.dtype_float([self.nonterminals[i + self.n] for i in idxs]).unsqueeze(1)  # Mask for non-terminal nth next states
 
-    return inds, states, actions, returns, next_states, nonterminals, weights
+    return idxs, states, actions, returns, next_states, nonterminals, weights
 
   def update_priorities(self, inds, priorities):
     [self.sum_tree.update(i, priority) for i, priority in zip(inds, priorities)]
@@ -184,18 +149,18 @@ class ReplayMemory():
     valid = list(map(lambda x: x >= 0, self.timesteps))  # Valid frames by timestep
     valid = [a and b for a, b in zip(valid, valid[1:] + [False])]  # Cannot use terminal states/state at end of memory
     valid[:self.history - 1] = [False] * (self.history - 1)  # Cannot form stack from initial frames
-    self.current_ind = 0
-    self.valid_inds = [i for i, v in zip(range(len(valid)), valid) if v]
+    self.current_idx = 0
+    self.valid_idxs = [i for i, v in zip(range(len(valid)), valid) if v]
     return self
 
   # Return valid states for validation
   def __next__(self):
-    if self.current_ind == len(self.valid_inds):
+    if self.current_idx == len(self.valid_idxs):
       raise StopIteration
     # Create stack of states and nth next states
     state_stack = []
     for h in reversed(range(self.history)):
-      state_stack.append(self.states[self.valid_inds[self.current_ind - h]])
+      state_stack.append(self.states[self.valid_idxs[self.current_idx - h]])
     state = Variable(torch.stack(state_stack, 0).type(self.dtype_float).div_(255), volatile=True)  # Agent will turn into batch
-    self.current_ind += 1
+    self.current_idx += 1
     return state

@@ -45,7 +45,7 @@ class Agent():
     return (self.policy_net(state.unsqueeze(0)).data * self.support).sum(2).max(1)[1][0]
 
   def learn(self, mem):
-    inds, states, actions, returns, next_states, nonterminals, weights = mem.sample(self.batch_size)
+    idxs, states, actions, returns, next_states, nonterminals, weights = mem.sample(self.batch_size)
 
     # Calculate current state probabilities
     ps = self.policy_net(states)  # Probabilities p(s_t, ·; θpolicy)
@@ -78,7 +78,7 @@ class Agent():
     nn.utils.clip_grad_norm(self.policy_net.parameters(), self.max_gradient_norm)  # Clip gradients (normalising by max value of gradient L2 norm)
     self.optimiser.step()
 
-    mem.update_priorities(inds, loss.data.abs().pow(self.priority_exponent))  # Update priorities of sampled transitions
+    mem.update_priorities(idxs, loss.data.abs().pow(self.priority_exponent))  # Update priorities of sampled transitions
 
   def update_target_net(self):
     self.target_net.load_state_dict(self.policy_net.state_dict())
