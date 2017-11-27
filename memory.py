@@ -13,12 +13,14 @@ class SumTree():
     self.data = [None] * size  # Wrap-around cyclic buffer
     self.max = 0  # Store max value for fast retrieval
 
+  # Propagates value up tree given a tree index
   def _propagate(self, index, update):
     parent = (index - 1) // 2
     self.tree[parent] += update  # Propagate change in value rather than absolute value
     if parent != 0:
       self._propagate(parent, update)
 
+  # Updates value given a tree index
   def update(self, index, value):
     update = value - self.tree[index]
     self.tree[index] = value  # Set new value
@@ -40,11 +42,15 @@ class SumTree():
     else:
       return self._retrieve(right, value - self.tree[left])
 
-  # Searches for a value and returns data, value and indices
-  def get(self, value):
+  # Searches for a value and returns value, data index and tree index
+  def find(self, value):
     index = self._retrieve(0, value)  # Search for index of item from root
     data_index = index - self.size + 1
-    return (self.data[data_index], data_index, self.tree[index], index)  # Return data, data index, value, tree index
+    return (self.tree[index], data_index, index)  # Return value, data index, tree index
+
+  # Returns data given a data index
+  def get(self, data_index):
+    return self.data[data_index % self.size]
 
   def total(self):
     return self.tree[0]
@@ -88,20 +94,6 @@ class ReplayMemory():
     self.transitions.append(Transition(self.t, torch.ByteTensor(84, 84).zero_(), None, None, False), 0)
 
   def sample(self, batch_size):
-    p_total = self.transitions.total()  # Retrieve sum of all priorities (used to create a normalised probability distribution)
-    segment = p_total / batch_size  # Batch size number of segments, based on sum over all probabilities
-    samples = [random.uniform(i * segment, (i + 1) * segment) for i in range(batch_size)]  # Uniformly sample an element from each segment
-    batch = [self.transitions.get(s) for s in samples]  # Retrieve samples from tree
-    transitions, idxs, probs, tree_idxs = zip(*batch)  # Unpack transitions, data indices, unnormalised probabilities (priorities), tree indices
-
-    print(transitions)
-    quit()
-
-    probs = Variable(torch.Tensor(probs)) / p_total  # Calculate normalised probabilities
-    weights = (self.capacity * probs) ** -self.priority_weight  # Compute importance-sampling weights w
-    weights = weights / weights.max()   # Normalise by max importance-sampling weight
-
-    # TODO: Make sure samples are valid
     """
     # Find indices for valid samples
     valid = list(map(lambda x: x >= 0, self.timesteps))  # Valid frames by timestep
@@ -111,23 +103,41 @@ class ReplayMemory():
     idxs = random.sample([i for i, v in zip(range(len(valid)), valid) if v], batch_size)
     """
 
+    p_total = self.transitions.total()  # Retrieve sum of all priorities (used to create a normalised probability distribution)
+    segment = p_total / batch_size  # Batch size number of segments, based on sum over all probabilities
+    samples = [random.uniform(i * segment, (i + 1) * segment) for i in range(batch_size)]  # Uniformly sample an element from each segment
+    batch = [self.transitions.find(s) for s in samples]  # Retrieve samples from tree
+    probs, idxs, tree_idxs = zip(*batch)  # Unpack unnormalised probabilities (priorities), data indices, tree indices
+    # TODO: Check that transitions with 0 probability are not returned
+    # TODO: Make sure samples are valid
+
+    # Retrieve all required transition data (from t - h to t + n + 1)
+    full_transitions = [[self.transitions.get(i + t) for i in idxs] for t in range(1 - self.history, self.n + 2)]
+
     # Create stack of states and nth next states
     state_stack, next_state_stack = [], []
-    for h in reversed(range(self.history)):
-      state_stack.append(torch.stack([self.states[i - h] for i in idxs], 0))
-      next_state_stack.append(torch.stack([self.states[i + self.n - h] for i in idxs], 0))  # nth next state
+    for t in range(self.history):
+      state_stack.append(torch.stack([transition.state for transition in full_transitions[t]], 0))
+      # TODO: Deal with invalid nth next states
+      # next_state_stack.append(torch.stack([transition.state for transition in full_transitions[t + self.n]], 0))  # nth next state
     states = Variable(torch.stack(state_stack, 1).type(self.dtype_float).div_(255))  # Un-discretise
-    next_states = Variable(torch.stack(next_state_stack, 1).type(self.dtype_float).div_(255), volatile=True)
+    # next_states = Variable(torch.stack(next_state_stack, 1).type(self.dtype_float).div_(255), volatile=True)
 
-    actions = self.dtype_long([self.actions[i] for i in idxs])
+    actions = self.dtype_long([transition.action for transition in full_transitions[self.history - 1]])
 
+    """
     # Calculate truncated n-step discounted return R^n = Σ_k=0->n-1 (γ^k)R_t+k+1
     returns = [self.rewards[i] for i in idxs]
     for n in range(1, self.n):
       returns = [R + self.discount ** n * self.rewards[i + n] for R, i in zip(returns, idxs)]
     returns = self.dtype_float(returns)
 
-    nonterminals = self.dtype_float([self.nonterminals[i + self.n] for i in idxs]).unsqueeze(1)  # Mask for non-terminal nth next states
+    nonterminals = self.dtype_float([transition.nonterminal for transition in full_transitions[self.history + self.n]]).unsqueeze(1)  # Mask for non-terminal nth next states
+    """
+
+    probs = Variable(torch.Tensor(probs)) / p_total  # Calculate normalised probabilities
+    weights = (self.capacity * probs) ** -self.priority_weight  # Compute importance-sampling weights w
+    weights = weights / weights.max()   # Normalise by max importance-sampling weight
 
     return tree_idxs, states, actions, returns, next_states, nonterminals, weights
 
