@@ -1,5 +1,5 @@
 import random
-from collections import deque
+from collections import namedtuple
 import torch
 from torch.autograd import Variable
 
@@ -9,8 +9,8 @@ class SumTree():
   def __init__(self, size):
     self.index = 0
     self.size = size
-    self.tree = [0] * (2 * size - 1)  # Initialise tree with zeros as no priorities at start to build tree
-    self.data = [0] * size  # Wrap-around cyclic buffer
+    self.tree = [0] * (2 * size - 1)  # Initialise fixed size tree with all zeros
+    self.data = [None] * size  # Wrap-around cyclic buffer
     self.max = 0  # Store max value for fast retrieval
 
   def _propagate(self, index, update):
@@ -25,8 +25,8 @@ class SumTree():
     self._propagate(index, update)  # Propagate change
     self.max = max(self.max, value)  # Update max
 
-  def append(self, value):
-    self.data[self.index] = value  # Store value in underlying data structure
+  def append(self, data, value):
+    self.data[self.index] = data  # Store data in underlying data structure
     self.update(self.index + self.size - 1, value)  # Update tree
     self.index = (self.index + 1) % self.size  # Update index
 
@@ -40,14 +40,17 @@ class SumTree():
     else:
       return self._retrieve(right, value - self.tree[left])
 
-  # Searches for a value and returns location and other data
+  # Searches for a value and returns data, value and indices
   def get(self, value):
     index = self._retrieve(0, value)  # Search for index of item from root
     data_index = index - self.size + 1
-    return (data_index, index, self.tree[index])  # Return data index, tree index, priority
+    return (self.data[data_index], data_index, self.tree[index], index)  # Return data, data index, value, tree index
 
   def total(self):
     return self.tree[0]
+
+
+Transition = namedtuple('Transition', ('timestep', 'state', 'action', 'reward', 'nonterminal'))
 
 
 class ReplayMemory():
@@ -62,55 +65,42 @@ class ReplayMemory():
     self.n = args.multi_step
     self.priority_weight = args.priority_weight  # Initial importance sampling weight β, annealed to 1 over course of training
     self.t = 0  # Internal episode timestep counter
-    self.states = deque([], maxlen=capacity)
-    self.actions = deque([], maxlen=capacity)
-    self.rewards = deque([], maxlen=capacity)
-    self.timesteps = deque([], maxlen=capacity)
-    self.nonterminals = deque([], maxlen=capacity)  # Non-terminal states
-    self.priorities = SumTree(capacity)  # Store priorities in a wrap-around cyclic buffer within a sum tree
+    self.transitions = SumTree(capacity)  # Store transitions in a wrap-around cyclic buffer within a sum tree for querying priorities
 
   # Add empty states to prepare for new episode
   def preappend(self):
     self.t = 0
     # Blank transitions from before episode
     for h in range(-self.history + 1, 0):
-      self.timesteps.append(h)
-      self.states.append(torch.ByteTensor(84, 84).zero_())  # Add blank state
-      self.actions.append(None)
-      self.rewards.append(None)
-      self.nonterminals.append(True)
-      self.priorities.append(0)  # Store zero priority
+      # Add blank state with zero priority
+      self.transitions.append(Transition(h, torch.ByteTensor(84, 84).zero_(), None, None, True), 0)
 
+  # Adds state, action and reward at time t (technically reward from time t + 1, but kept at t for all buffers to be in sync)
   def append(self, state, action, reward):
-    # Add state, action and reward at time t
-    self.timesteps.append(self.t)
-    self.states.append(state[-1].mul(255).byte().cpu())  # Only store last frame and discretise to save memory
-    self.actions.append(action)
-    self.rewards.append(reward)  # Technically from time t + 1, but kept at t for all buffers to be in sync
-    self.nonterminals.append(True)
+    state = state[-1].mul(255).byte().cpu()  # Only store last frame and discretise to save memory
+    # Store new transition with maximum priority (or use initial priority 1)
+    self.transitions.append(Transition(self.t, state, action, reward, True), max(self.transitions.max, 1))
     self.t += 1
-    self.priorities.append(max(self.priorities.max, 1))  # Store new transition with maximum priority (or use initial priority 1)
 
   # Add empty state at end of episode
   def postappend(self):
-    self.timesteps.append(self.t)
-    self.states.append(torch.ByteTensor(84, 84).zero_())  # Add blank state (used to replace terminal state)
-    self.actions.append(None)
-    self.rewards.append(None)
-    self.nonterminals.append(False)
-    self.priorities.append(0)  # Store zero priority
+    # Add blank state (used to replace terminal state) with zero priority
+    self.transitions.append(Transition(self.t, torch.ByteTensor(84, 84).zero_(), None, None, False), 0)
 
   def sample(self, batch_size):
-    p_total = self.priorities.total()  # Retrieve sum of all priorities (used to create a normalised probability distribution)
+    p_total = self.transitions.total()  # Retrieve sum of all priorities (used to create a normalised probability distribution)
     segment = p_total / batch_size  # Batch size number of segments, based on sum over all probabilities
     samples = [random.uniform(i * segment, (i + 1) * segment) for i in range(batch_size)]  # Uniformly sample an element from each segment
-    batch = [self.priorities.get(s) for s in samples]  # Retrieve samples from tree
-    idxs, tree_idxs, probs = zip(*batch)  # Unpack data indices, tree indices, unnormalised probabilities (priorities)
+    batch = [self.transitions.get(s) for s in samples]  # Retrieve samples from tree
+    transitions, idxs, probs, tree_idxs = zip(*batch)  # Unpack transitions, data indices, unnormalised probabilities (priorities), tree indices
+
+    print(transitions)
+    quit()
+
     probs = Variable(torch.Tensor(probs)) / p_total  # Calculate normalised probabilities
     weights = (self.capacity * probs) ** -self.priority_weight  # Compute importance-sampling weights w
     weights = weights / weights.max()   # Normalise by max importance-sampling weight
 
-    # TODO: Convert buffer idxs into deque idxs
     # TODO: Make sure samples are valid
     """
     # Find indices for valid samples
@@ -142,8 +132,9 @@ class ReplayMemory():
     return tree_idxs, states, actions, returns, next_states, nonterminals, weights
 
   def update_priorities(self, idxs, priorities):
-    [self.priorities.update(idx, priority) for idx, priority in zip(idxs, priorities)]
+    [self.transitions.update(idx, priority) for idx, priority in zip(idxs, priorities)]
 
+  """
   # Set up internal state for iterator
   def __iter__(self):
     # Find indices for valid samples
@@ -165,3 +156,4 @@ class ReplayMemory():
     state = Variable(torch.stack(state_stack, 0).type(self.dtype_float).div_(255), volatile=True)  # Agent will turn into batch
     self.current_idx += 1
     return state
+  """
