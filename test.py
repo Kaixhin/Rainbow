@@ -64,10 +64,7 @@ def _plot_line(xs, ys_population, title, path=''):
   max_colour, mean_colour, std_colour = 'rgb(0, 132, 180)', 'rgb(0, 172, 237)', 'rgba(29, 202, 255, 0.2)'
 
   ys = torch.Tensor(ys_population)
-  ys_min = ys.min(1)[0].squeeze()
-  ys_max = ys.max(1)[0].squeeze()
-  ys_mean = ys.mean(1).squeeze()
-  ys_std = ys.std(1).squeeze()
+  ys_min, ys_max, ys_mean, ys_std = ys.min(1)[0].squeeze(), ys.max(1)[0].squeeze(), ys.mean(1).squeeze(), ys.std(1).squeeze()
   ys_upper, ys_lower = ys_mean + ys_std, ys_mean - ys_std
 
   trace_max = Scatter(x=xs, y=ys_max.numpy(), line=Line(color=max_colour, dash='dash'), name='Max')
@@ -78,7 +75,5 @@ def _plot_line(xs, ys_population, title, path=''):
 
   plotly.offline.plot({
     'data': [trace_upper, trace_mean, trace_lower, trace_min, trace_max],
-    'layout': dict(title=title,
-                   xaxis={'title': 'Step'},
-                   yaxis={'title': title})
+    'layout': dict(title=title, xaxis={'title': 'Step'}, yaxis={'title': title})
   }, filename=os.path.join(path, title + '.html'), auto_open=False)
