@@ -12,6 +12,14 @@ Rainbow: Combining Improvements in Deep Reinforcement Learning [[1]](#references
 - [x] Distributional RL [[7]](#references)
 - [x] Noisy Nets [[8]](#references)
 
+Installation
+------------
+
+```
+conda env create -f environment.yml
+source activate rainbow
+```
+
 Requirements
 ------------
 

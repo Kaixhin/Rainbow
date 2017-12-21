@@ -1,0 +1,92 @@
+name: rainbow
+channels:
+- pytorch
+- defaults
+dependencies:
+- asn1crypto=0.23.0=py36h782d450_0
+- bokeh=0.12.13=py36h2f9c1c0_0
+- ca-certificates=2017.08.26=ha1e5d58_0
+- certifi=2017.11.5=py36ha569be9_0
+- cffi=1.11.2=py36hd3e6348_0
+- chardet=3.0.4=py36h96c241c_1
+- click=6.7=py36hec950be_0
+- cloudpickle=0.5.2=py36h379c7bd_0
+- cryptography=2.1.4=py36h842514c_0
+- cycler=0.10.0=py36hfc81398_0
+- dask=0.16.0=py36h40f4302_0
+- dask-core=0.16.0=py36haa8de34_0
+- decorator=4.1.2=py36h69a1b52_0
+- distributed=1.20.2=py36_0
+- freetype=2.8=h12048fb_1
+- heapdict=1.0.0=py36h27a9ac6_0
+- idna=2.6=py36h8628d0a_1
+- imageio=2.2.0=py36h5e01289_0
+- intel-openmp=2018.0.0=h8158457_8
+- ipython_genutils=0.2.0=py36h241746c_0
+- jinja2=2.10=py36hd36f9c5_0
+- jpeg=9b=he5867d9_2
+- jsonschema=2.6.0=py36hb385e00_0
+- jupyter_core=4.4.0=py36h79cf704_0
+- libcxx=4.0.1=h579ed51_0
+- libcxxabi=4.0.1=hebd6815_0
+- libedit=3.1=hb4e282d_0
+- libffi=3.2.1=h475c297_4
+- libgfortran=3.0.1=h93005f0_2
+- libpng=1.6.32=hd1e8b91_4
+- libtiff=4.0.9=h0dac147_0
+- locket=0.2.0=py36hca03003_1
+- markupsafe=1.0=py36h3a1e703_1
+- matplotlib=2.1.1=py36h2fb3e9e_0
+- mkl=2018.0.1=hfbd8650_4
+- msgpack-python=0.4.8=py36h46767b2_0
+- nbformat=4.4.0=py36h827af21_0
+- ncurses=6.0=hd04f020_2
+- networkx=1.11=py36he1dbd48_0
+- numpy=1.13.3=py36h2cdce51_0
+- olefile=0.44=py36ha08bf50_0
+- openssl=1.0.2n=hdbc3d79_0
+- pandas=0.21.1=py36h2c08c6b_0
+- partd=0.3.8=py36hf5c4cb8_0
+- pillow=4.3.0=py36h96fe3d5_1
+- pip=9.0.1=py36h1555ced_4
+- plotly=2.2.2=py36h097dc49_0
+- psutil=5.4.1=py36h907aff9_0
+- pycparser=2.18=py36h724b2fc_1
+- pyopenssl=17.5.0=py36h51e4350_0
+- pyparsing=2.2.0=py36hb281f35_0
+- pysocks=1.6.7=py36hfa33cec_1
+- python=3.6.3=h47c878a_7
+- python-dateutil=2.6.1=py36h86d2abb_1
+- pytz=2017.3=py36hf0bf824_0
+- pywavelets=0.5.2=py36h2710a04_0
+- pyyaml=3.12=py36h2ba1e63_1
+- readline=7.0=hc1231fa_4
+- requests=2.18.4=py36h4516966_1
+- scikit-image=0.13.1=py36hd1453f6_0
+- scipy=1.0.0=py36h1de22e9_0
+- setuptools=36.5.0=py36h2134326_0
+- six=1.11.0=py36h0e22d5e_1
+- sortedcontainers=1.5.7=py36ha982688_0
+- sqlite=3.20.1=h7e4c145_2
+- tblib=1.3.2=py36hda67792_0
+- tk=8.6.7=h35a86e2_3
+- toolz=0.8.2=py36h7b95164_0
+- tornado=4.5.2=py36h468dda9_0
+- traitlets=4.3.2=py36h65bd3ce_0
+- urllib3=1.22=py36h68b9469_0
+- wheel=0.30.0=py36h5eb2c71_1
+- xz=5.2.3=h0278029_2
+- yaml=0.1.7=hc338f04_2
+- zict=0.1.3=py36h71da714_0
+- zlib=1.2.11=hf3cbc9b_2
+- pytorch=0.3.0=py36_cuda0.0_cudnn0.0h57b1bc9_4
+- torchvision=0.2.0=py36hf5eb7ec_1
+- pip:
+  - atari-py==0.1.1
+  - future==0.16.0
+  - gym==0.9.4
+  - ipython-genutils==0.2.0
+  - jupyter-core==4.4.0
+  - pyglet==1.3.0
+  - pyopengl==3.1.0
+  - torch==0.3.0.post4
