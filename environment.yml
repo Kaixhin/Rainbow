@@ -1,0 +1,9 @@
+name: rainbow
+channels:
+  - pytorch
+dependencies:
+  - plotly
+  - pytorch
+  - scikit-image
+  - pip:
+    - gym[atari]

@@ -15,9 +15,12 @@ Rainbow: Combining Improvements in Deep Reinforcement Learning [[1]](#references
 Requirements
 ------------
 
-- [PyTorch](http://pytorch.org/)
+- [OpenAI Gym](https://github.com/openai/gym)
 - [Plotly](https://plot.ly/)
+- [PyTorch](http://pytorch.org/)
 - [scikit-image](http://scikit-image.org/)
+
+To install all dependencies with Anaconda run `conda env create -f environment.yml` and use `source activate rainbow` to activate the environment.
 
 Acknowledgements
 ----------------

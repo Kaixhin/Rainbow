@@ -66,7 +66,7 @@ class DQN(nn.Module):
     v, a = self.fc_z_v(x), self.fc_z_a(x)  # Calculate value and advantage streams
     a_mean = torch.stack(a.chunk(self.action_space, 1), 1).mean(1)
     x = v.repeat(1, self.action_space) + a - a_mean.repeat(1, self.action_space)  # Combine streams
-    p = torch.stack([F.softmax(p) for p in x.chunk(self.action_space, 1)], 1)  # Probabilities with action over second dimension
+    p = torch.stack([F.softmax(p, dim=1) for p in x.chunk(self.action_space, 1)], 1)  # Probabilities with action over second dimension
     return p.clamp(min=1e-8, max=1 - 1e-8)  # Use clipping to prevent NaNs
 
   def reset_noise(self):
