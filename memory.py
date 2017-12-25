@@ -9,8 +9,8 @@ class SumTree():
   def __init__(self, size):
     self.index = 0
     self.size = size
-    self.tree = [0] * (2 * size - 1)  # Initialise fixed size tree with all zeros
-    self.data = [None] * size  # Wrap-around cyclic buffer
+    self.tree = [0] * (2 * size - 1)  # Initialise fixed size tree with all (priority) zeros
+    self.data = [Transition(-1, torch.ByteTensor(84, 84).zero_(), None, 0, True)] * size  # Wrap-around cyclic buffer filled with (zero-priority) blank transitions
     self.max = 0  # Store max value for fast retrieval
 
   # Propagates value up tree given a tree index
@@ -79,7 +79,7 @@ class ReplayMemory():
     # Blank transitions from before episode
     for h in range(-self.history + 1, 0):
       # Add blank state with zero priority
-      self.transitions.append(Transition(h, torch.ByteTensor(84, 84).zero_(), None, None, True), 0)
+      self.transitions.append(Transition(h, torch.ByteTensor(84, 84).zero_(), None, 0, True), 0)
 
   # Adds state, action and reward at time t (technically reward from time t + 1, but kept at t for all buffers to be in sync)
   def append(self, state, action, reward):
@@ -91,53 +91,44 @@ class ReplayMemory():
   # Add empty state at end of episode
   def postappend(self):
     # Add blank state (used to replace terminal state) with zero priority
-    self.transitions.append(Transition(self.t, torch.ByteTensor(84, 84).zero_(), None, None, False), 0)
+    self.transitions.append(Transition(self.t, torch.ByteTensor(84, 84).zero_(), None, 0, False), 0)
 
   def sample(self, batch_size):
-    """
-    # Find indices for valid samples
-    valid = list(map(lambda x: x >= 0, self.timesteps))  # Valid frames by timestep
-    # TODO: Alternative is to allow terminal states (- n+1) but truncate multi-step returns appropriately
-    valid = [a and b for a, b in zip(valid, valid[self.n:] + [False] * self.n)]  # Cannot use terminal states (- n+1)/state at end of memory
-    valid[:self.history - 1] = [False] * (self.history - 1)  # Cannot form stack from initial frames
-    idxs = random.sample([i for i, v in zip(range(len(valid)), valid) if v], batch_size)
-    """
-
     p_total = self.transitions.total()  # Retrieve sum of all priorities (used to create a normalised probability distribution)
     segment = p_total / batch_size  # Batch size number of segments, based on sum over all probabilities
     samples = [random.uniform(i * segment, (i + 1) * segment) for i in range(batch_size)]  # Uniformly sample an element from each segment
     batch = [self.transitions.find(s) for s in samples]  # Retrieve samples from tree
     probs, idxs, tree_idxs = zip(*batch)  # Unpack unnormalised probabilities (priorities), data indices, tree indices
-    # TODO: Check that transitions with 0 probability are not returned
-    # TODO: Make sure samples are valid
+    # TODO: Check that transitions with 0 probability are not returned/make sure samples are valid
 
-    # Retrieve all required transition data (from t - h to t + n + 1)
-    full_transitions = [[self.transitions.get(i + t) for i in idxs] for t in range(1 - self.history, self.n + 2)]
+    # Retrieve all required transition data (from t - h to t + n)
+    full_transitions = [[self.transitions.get(i + t) for i in idxs] for t in range(1 - self.history, self.n + 1)]  # Time x batch
 
     # Create stack of states and nth next states
     state_stack, next_state_stack = [], []
     for t in range(self.history):
       state_stack.append(torch.stack([transition.state for transition in full_transitions[t]], 0))
-      # TODO: Deal with invalid nth next states
-      # next_state_stack.append(torch.stack([transition.state for transition in full_transitions[t + self.n]], 0))  # nth next state
+      next_state_stack.append(torch.stack([transition.state for transition in full_transitions[t + self.n]], 0))  # nth next state
     states = Variable(torch.stack(state_stack, 1).type(self.dtype_float).div_(255))  # Un-discretise
-    # next_states = Variable(torch.stack(next_state_stack, 1).type(self.dtype_float).div_(255), volatile=True)
+    next_states = Variable(torch.stack(next_state_stack, 1).type(self.dtype_float).div_(255), volatile=True)
 
     actions = self.dtype_long([transition.action for transition in full_transitions[self.history - 1]])
 
-    """
     # Calculate truncated n-step discounted return R^n = Σ_k=0->n-1 (γ^k)R_t+k+1
-    returns = [self.rewards[i] for i in idxs]
+    returns = [transition.reward for transition in full_transitions[self.history - 1]]
     for n in range(1, self.n):
-      returns = [R + self.discount ** n * self.rewards[i + n] for R, i in zip(returns, idxs)]
-    returns = self.dtype_float(returns)
+      # Invalid nth next states have reward 0 and hence do not affect calculation
+      returns = [R + self.discount ** n * transition.reward for R, transition in zip(returns, full_transitions[self.history + n])]
+    returns = self.dtype_float(returns)  # TODO: Make sure this doesn't cause issues around current buffer index
 
-    nonterminals = self.dtype_float([transition.nonterminal for transition in full_transitions[self.history + self.n]]).unsqueeze(1)  # Mask for non-terminal nth next states
-    """
+    nonterminals = [transition.nonterminal for transition in full_transitions[self.history + self.n - 1]] # Mask for non-terminal nth next states
+    for t in range(self.history, self.history + self.n):  # Hack: if nth next state is invalid (overlapping transition), treat it as terminal
+      nonterminals = [nonterm and (trans.timestep - pre_trans.timestep) == 1 for nonterm, trans, pre_trans in zip(nonterminals, full_transitions[t], full_transitions[t - 1])]
+    nonterminals = self.dtype_float(nonterminals).unsqueeze(1) 
 
     probs = Variable(torch.Tensor(probs)) / p_total  # Calculate normalised probabilities
     weights = (self.capacity * probs) ** -self.priority_weight  # Compute importance-sampling weights w
-    weights = weights / weights.max()   # Normalise by max importance-sampling weight
+    weights = weights / weights.max()   # Normalise by max importance-sampling weight from batch
 
     return tree_idxs, states, actions, returns, next_states, nonterminals, weights
 
