@@ -135,15 +135,14 @@ class ReplayMemory():
   def update_priorities(self, idxs, priorities):
     [self.transitions.update(idx, priority) for idx, priority in zip(idxs, priorities)]
 
-  """
   # Set up internal state for iterator
   def __iter__(self):
     # Find indices for valid samples
-    valid = list(map(lambda x: x >= 0, self.timesteps))  # Valid frames by timestep
-    valid = [a and b for a, b in zip(valid, valid[1:] + [False])]  # Cannot use terminal states/state at end of memory
-    valid[:self.history - 1] = [False] * (self.history - 1)  # Cannot form stack from initial frames
+    self.valid_idxs = []
+    for t in range(self.capacity):
+      if self.transitions.data[t].timestep >= 0:
+        self.valid_idxs.append(t)
     self.current_idx = 0
-    self.valid_idxs = [i for i, v in zip(range(len(valid)), valid) if v]
     return self
 
   # Return valid states for validation
@@ -152,9 +151,8 @@ class ReplayMemory():
       raise StopIteration
     # Create stack of states and nth next states
     state_stack = []
-    for h in reversed(range(self.history)):
-      state_stack.append(self.states[self.valid_idxs[self.current_idx - h]])
+    for t in reversed(range(self.history)):
+      state_stack.append(self.transitions.data[self.valid_idxs[self.current_idx - t]].state)
     state = Variable(torch.stack(state_stack, 0).type(self.dtype_float).div_(255), volatile=True)  # Agent will turn into batch
     self.current_idx += 1
     return state
-  """

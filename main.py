@@ -71,7 +71,7 @@ priority_weight_increase = (1 - args.priority_weight) / (args.T_max - args.learn
 # Construct validation memory
 val_mem = ReplayMemory(args, args.evaluation_size)
 T, done = 0, True
-while T < args.evaluation_size:
+while T < args.evaluation_size - args.history_length + 1:
   if done:
     state, done = env.reset(), False
     val_mem.preappend()  # Set up memory for beginning of episode
