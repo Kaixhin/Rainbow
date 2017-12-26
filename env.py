@@ -1,4 +1,5 @@
 from collections import deque
+import random
 import atari_py
 import torch
 from torch.nn import functional as F
@@ -16,12 +17,14 @@ class Env():
     actions = self.ale.getMinimalActionSet()
     self.actions = dict([i, e] for i, e in zip(range(len(actions)), actions))
     self.lives = 0  # Life counter (used in DeepMind training)
+    self.life_termination = False  # Used to check if resetting only from loss of life
     self.window = args.history_length  # Number of frames to concatenate
     self.buffer = deque([], maxlen=args.history_length)
     self.training = True  # Consistent with model training mode
 
   def _get_state(self):
     state = self.dtype(self.ale.getScreenGrayscale()).div_(255).view(1, 1, 210, 160)
+    # TODO: Replace downsampling with cv2.INTER_AREA for better downsampling
     state = F.upsample(state, size=(84, 84), mode='bilinear')  # TODO: Check resizing is same as original/discretises to [0, 255] properly
     return state.squeeze().data
 
@@ -30,14 +33,22 @@ class Env():
       self.buffer.append(self.dtype(84, 84).zero_())
 
   def reset(self):
-    # Reset internals
-    self._reset_buffer()
-    self.ale.reset_game()
-    self.lives = self.ale.lives()
-    # Process and return initial state
+    if self.life_termination:
+      self.life_termination = False  # Reset flag
+      self.ale.act(0)  # Use a no-op after loss of life
+    else:
+      # Reset internals
+      self._reset_buffer()
+      self.ale.reset_game()
+      # Perform up to 30 random no-ops before starting
+      for t in range(random.randrange(30)):
+        self.ale.act(0)  # Assumes raw action 0 is always no-op
+        if self.ale.game_over():
+          self.ale.reset_game()
+    # Process and return "initial" state
     observation = self._get_state()
-    # TODO: 30 random no-op starts?
     self.buffer.append(observation)
+    self.lives = self.ale.lives()
     return torch.stack(self.buffer, 0)
 
   def step(self, action):
@@ -50,9 +61,9 @@ class Env():
     if self.training:
       lives = self.ale.lives()
       if lives < self.lives:
-        done = True  # TODO: Prevent resetting env on loss of life
-      else:
-        self.lives = lives
+        self.life_termination = not done  # Only set flag when not truly done
+        done = True
+      self.lives = lives
     # Return state, reward, done
     return torch.stack(self.buffer, 0), reward, done
 
