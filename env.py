@@ -1,65 +1,69 @@
-import logging
 from collections import deque
-from skimage import color, transform
-import gym
+import random
+import atari_py
 import torch
-
-# Disable gym logging
-logging.disable(logging.INFO)
+from torch.nn import functional as F
 
 
 class Env():
   def __init__(self, args):
     super().__init__()
     self.dtype = torch.cuda.FloatTensor if args.cuda else torch.FloatTensor
-
-    self.env = gym.make(args.game + 'Deterministic-v4')
+    self.ale = atari_py.ALEInterface()
+    self.ale.loadROM(atari_py.get_game_path(args.game))
+    self.ale.setInt('max_num_frames', args.max_episode_length)
+    self.ale.setFloat('repeat_action_probability', 0)  # Disable sticky actions
+    self.ale.setInt('frame_skip', 4)  # TODO: Should input max over last 2 frames of 4
+    actions = self.ale.getMinimalActionSet()
+    self.actions = dict([i, e] for i, e in zip(range(len(actions)), actions))
+    self.lives = 0  # Life counter (used in DeepMind training)
+    self.life_termination = False  # Used to check if resetting only from loss of life
     self.window = args.history_length  # Number of frames to concatenate
     self.buffer = deque([], maxlen=args.history_length)
-    self.t = 0  # Internal step counter
-    self.T = args.max_episode_length
     self.training = True  # Consistent with model training mode
-    self.lives = 0  # Life counter (used in DeepMind training)
 
-  # TODO: Check these - quite probably result in states that are not properly discretised to [0, 255]
-  def _state_to_tensor(self, state):
-    gray_img = color.rgb2gray(state)  # TODO: Check image conversion doesn't cause problems
-    downsized_img = transform.resize(gray_img, (84, 84), mode='constant')  # TODO: Check resizing doesn't cause problems
-    state = torch.from_numpy(downsized_img).type(self.dtype)  # 2D image tensor
-    return state
+  def _get_state(self):
+    state = self.dtype(self.ale.getScreenGrayscale()).div_(255).view(1, 1, 210, 160)
+    # TODO: Replace downsampling with cv2.INTER_AREA for better downsampling
+    state = F.upsample(state, size=(84, 84), mode='bilinear')  # TODO: Check resizing is same as original/discretises to [0, 255] properly
+    return state.squeeze().data
 
   def _reset_buffer(self):
     for t in range(self.window):
       self.buffer.append(self.dtype(84, 84).zero_())
 
   def reset(self):
-    # Reset internals
-    self.t = 0
-    self._reset_buffer()
-    self.lives = self.env.env.ale.lives()
-    # Process and return initial state
-    observation = self.env.reset()
-    # TODO: 30 random no-op starts?
-    observation = self._state_to_tensor(observation)
+    if self.life_termination:
+      self.life_termination = False  # Reset flag
+      self.ale.act(0)  # Use a no-op after loss of life
+    else:
+      # Reset internals
+      self._reset_buffer()
+      self.ale.reset_game()
+      # Perform up to 30 random no-ops before starting
+      for t in range(random.randrange(30)):
+        self.ale.act(0)  # Assumes raw action 0 is always no-op
+        if self.ale.game_over():
+          self.ale.reset_game()
+    # Process and return "initial" state
+    observation = self._get_state()
     self.buffer.append(observation)
+    self.lives = self.ale.lives()
     return torch.stack(self.buffer, 0)
 
   def step(self, action):
     # Process state
-    observation, reward, done, _ = self.env.step(action)
-    observation = self._state_to_tensor(observation)
+    reward = self.ale.act(self.actions.get(action))
+    observation = self._get_state()
     self.buffer.append(observation)
+    done = self.ale.game_over()
     # Detect loss of life as terminal in training mode
     if self.training:
-      lives = self.env.env.ale.lives()
+      lives = self.ale.lives()
       if lives < self.lives:
+        self.life_termination = not done  # Only set flag when not truly done
         done = True
-      else:
-        self.lives = lives
-    # Time out episode if necessary
-    self.t += 1
-    if self.t == self.T:
-      done = True
+      self.lives = lives
     # Return state, reward, done
     return torch.stack(self.buffer, 0), reward, done
 
@@ -72,13 +76,15 @@ class Env():
     self.training = False
 
   def action_space(self):
-    return self.env.action_space.n
+    return len(self.actions)
 
   def seed(self, seed):
-    self.env.seed(seed)
+    self.ale.setInt('random_seed', seed)
 
   def render(self):
-    self.env.render()
+    pass  # TODO
+    # self.env.render()
 
   def close(self):
-    self.env.close()
+    pass  # TODO
+    # self.env.close()

@@ -4,6 +4,5 @@ channels:
 dependencies:
   - plotly
   - pytorch
-  - scikit-image
   - pip:
-    - gym[atari]
+    - atari-py
