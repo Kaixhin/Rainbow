@@ -12,7 +12,7 @@ from test import test
 parser = argparse.ArgumentParser(description='Rainbow')
 parser.add_argument('--seed', type=int, default=123, help='Random seed')
 parser.add_argument('--disable-cuda', action='store_true', help='Disable CUDA')
-parser.add_argument('--game', type=str, default='space_invaders', help='ATARI game')
+parser.add_argument('--game', type=str, default='phoenix', help='ATARI game')
 parser.add_argument('--T-max', type=int, default=int(5e7), metavar='STEPS', help='Number of training steps')
 parser.add_argument('--max-episode-length', type=int, default=int(1e6), metavar='LENGTH', help='Max episode length (0 to disable)')
 parser.add_argument('--history-length', type=int, default=4, metavar='T', help='Number of consecutive states processed')
@@ -39,6 +39,7 @@ parser.add_argument('--evaluate', action='store_true', help='Evaluate only')
 parser.add_argument('--evaluation-interval', type=int, default=25000, metavar='STEPS', help='Number of training steps between evaluations')
 parser.add_argument('--evaluation-episodes', type=int, default=10, metavar='N', help='Number of evaluation episodes to average over')
 parser.add_argument('--evaluation-size', type=int, default=500, metavar='N', help='Number of transitions to use for validating Q')
+parser.add_argument('--log-interval', type=int, default=10000, metavar='STEPS', help='Number of training steps between logging status')
 parser.add_argument('--render', action='store_true', help='Render evaluation agent')
 
 
@@ -116,12 +117,15 @@ else:
       if T % args.evaluation_interval == 0:
         dqn.eval()  # Set DQN (policy network) to evaluation mode
         avg_reward, avg_Q = test(args, T, dqn, val_mem)  # Test
-        print('Evaluation @ T=' + str(T) + ' | Avg. reward: ' + str(avg_reward) + ' | Avg. Q: ' + str(avg_Q))
+        print('Evaluation @ T = ' + str(T) + ' | Avg. reward: ' + str(avg_reward) + ' | Avg. Q: ' + str(avg_Q))
         dqn.train()  # Set DQN (policy network) back to training mode
 
     # Update target network
     if T % args.target_update == 0:
       dqn.update_target_net()
+
+    if T % args.log_interval == 0:
+      print('T = ' + str(T) + ' / ' + str(args.T_max))
 
     state = Variable(next_state)
     if done:
