@@ -1,32 +1,32 @@
-import logging
 from collections import deque
-from skimage import color, transform
-import gym
+import atari_py
 import torch
-
-# Disable gym logging
-logging.disable(logging.INFO)
+from torch.nn import functional as F
 
 
 class Env():
   def __init__(self, args):
     super().__init__()
     self.dtype = torch.cuda.FloatTensor if args.cuda else torch.FloatTensor
-
-    self.env = gym.make(args.game + 'Deterministic-v4')
+    self.ale = atari_py.ALEInterface()
+    self.ale.loadROM(atari_py.get_game_path(args.game))
+    self.ale.setInt('max_num_frames', args.max_episode_length)
+    self.ale.setFloat('repeat_action_probability', 0)  # Disable sticky actions
+    self.ale.setInt('frame_skip', 4)
+    self.ale.setBool('color_averaging', True)  # TODO: Should be max over last 2 frames of 4
+    self.actions = self.ale.getMinimalActionSet()
+    self.T = args.max_episode_length
+    self.t = 0  # Internal step counter
+    self.lives = 0  # Life counter (used in DeepMind training)
     self.window = args.history_length  # Number of frames to concatenate
     self.buffer = deque([], maxlen=args.history_length)
-    self.t = 0  # Internal step counter
-    self.T = args.max_episode_length
     self.training = True  # Consistent with model training mode
-    self.lives = 0  # Life counter (used in DeepMind training)
 
   # TODO: Check these - quite probably result in states that are not properly discretised to [0, 255]
-  def _state_to_tensor(self, state):
-    gray_img = color.rgb2gray(state)  # TODO: Check image conversion doesn't cause problems
-    downsized_img = transform.resize(gray_img, (84, 84), mode='constant')  # TODO: Check resizing doesn't cause problems
-    state = torch.from_numpy(downsized_img).type(self.dtype)  # 2D image tensor
-    return state
+  def _get_state(self):
+    state = self.dtype(self.ale.getScreenGrayscale()).div_(255).view(1, 1, 210, 160)
+    state = F.upsample(state, size=(84, 84), mode='bilinear')  # TODO: Check resizing doesn't cause problems
+    return state.squeeze().data
 
   def _reset_buffer(self):
     for t in range(self.window):
@@ -36,15 +36,19 @@ class Env():
     # Reset internals
     self.t = 0
     self._reset_buffer()
-    self.lives = self.env.env.ale.lives()
+    self.ale.reset_game()
+    self.lives = self.ale.lives()
     # Process and return initial state
-    observation = self.env.reset()
+    observation = self._get_state()
     # TODO: 30 random no-op starts?
-    observation = self._state_to_tensor(observation)
     self.buffer.append(observation)
     return torch.stack(self.buffer, 0)
 
   def step(self, action):
+    pass  # TODO
+    """
+    while not ale.game_over():
+      reward = ale.act(a)
     # Process state
     observation, reward, done, _ = self.env.step(action)
     observation = self._state_to_tensor(observation)
@@ -62,6 +66,7 @@ class Env():
       done = True
     # Return state, reward, done
     return torch.stack(self.buffer, 0), reward, done
+    """
 
   # Uses loss of life as terminal signal
   def train(self):
@@ -72,13 +77,15 @@ class Env():
     self.training = False
 
   def action_space(self):
-    return self.env.action_space.n
+    return len(self.actions)
 
   def seed(self, seed):
-    self.env.seed(seed)
+    self.ale.setInt('random_seed', seed)
 
   def render(self):
-    self.env.render()
+    pass  # TODO
+    # self.env.render()
 
   def close(self):
-    self.env.close()
+    pass  # TODO
+    # self.env.close()
