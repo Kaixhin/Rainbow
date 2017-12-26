@@ -117,7 +117,7 @@ else:
       if T % args.evaluation_interval == 0:
         dqn.eval()  # Set DQN (policy network) to evaluation mode
         avg_reward, avg_Q = test(args, T, dqn, val_mem)  # Test
-        print('Evaluation @ T = ' + str(T) + ' | Avg. reward: ' + str(avg_reward) + ' | Avg. Q: ' + str(avg_Q))
+        print('T = ' + str(T) + ' / ' + str(args.T_max) + ' | Avg. reward: ' + str(avg_reward) + ' | Avg. Q: ' + str(avg_Q))
         dqn.train()  # Set DQN (policy network) back to training mode
 
     # Update target network

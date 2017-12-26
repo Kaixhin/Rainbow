@@ -126,7 +126,7 @@ class ReplayMemory():
       nonterminals = [nonterm and (trans.timestep - pre_trans.timestep) == 1 for nonterm, trans, pre_trans in zip(nonterminals, full_transitions[t], full_transitions[t - 1])]
     nonterminals = self.dtype_float(nonterminals).unsqueeze(1) 
 
-    probs = Variable(torch.Tensor(probs)) / p_total  # Calculate normalised probabilities
+    probs = Variable(self.dtype_float(probs)) / p_total  # Calculate normalised probabilities
     weights = (self.capacity * probs) ** -self.priority_weight  # Compute importance-sampling weights w
     weights = weights / weights.max()   # Normalise by max importance-sampling weight from batch
 
