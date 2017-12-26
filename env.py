@@ -12,20 +12,17 @@ class Env():
     self.ale.loadROM(atari_py.get_game_path(args.game))
     self.ale.setInt('max_num_frames', args.max_episode_length)
     self.ale.setFloat('repeat_action_probability', 0)  # Disable sticky actions
-    self.ale.setInt('frame_skip', 4)
-    self.ale.setBool('color_averaging', True)  # TODO: Should be max over last 2 frames of 4
-    self.actions = self.ale.getMinimalActionSet()
-    self.T = args.max_episode_length
-    self.t = 0  # Internal step counter
+    self.ale.setInt('frame_skip', 4)  # TODO: Should input max over last 2 frames of 4
+    actions = self.ale.getMinimalActionSet()
+    self.actions = dict([i, e] for i, e in zip(range(len(actions)), actions))
     self.lives = 0  # Life counter (used in DeepMind training)
     self.window = args.history_length  # Number of frames to concatenate
     self.buffer = deque([], maxlen=args.history_length)
     self.training = True  # Consistent with model training mode
 
-  # TODO: Check these - quite probably result in states that are not properly discretised to [0, 255]
   def _get_state(self):
     state = self.dtype(self.ale.getScreenGrayscale()).div_(255).view(1, 1, 210, 160)
-    state = F.upsample(state, size=(84, 84), mode='bilinear')  # TODO: Check resizing doesn't cause problems
+    state = F.upsample(state, size=(84, 84), mode='bilinear')  # TODO: Check resizing is same as original/discretises to [0, 255] properly
     return state.squeeze().data
 
   def _reset_buffer(self):
@@ -34,7 +31,6 @@ class Env():
 
   def reset(self):
     # Reset internals
-    self.t = 0
     self._reset_buffer()
     self.ale.reset_game()
     self.lives = self.ale.lives()
@@ -45,28 +41,20 @@ class Env():
     return torch.stack(self.buffer, 0)
 
   def step(self, action):
-    pass  # TODO
-    """
-    while not ale.game_over():
-      reward = ale.act(a)
     # Process state
-    observation, reward, done, _ = self.env.step(action)
-    observation = self._state_to_tensor(observation)
+    reward = self.ale.act(self.actions.get(action))
+    observation = self._get_state()
     self.buffer.append(observation)
+    done = self.ale.game_over()
     # Detect loss of life as terminal in training mode
     if self.training:
-      lives = self.env.env.ale.lives()
+      lives = self.ale.lives()
       if lives < self.lives:
-        done = True
+        done = True  # TODO: Prevent resetting env on loss of life
       else:
         self.lives = lives
-    # Time out episode if necessary
-    self.t += 1
-    if self.t == self.T:
-      done = True
     # Return state, reward, done
     return torch.stack(self.buffer, 0), reward, done
-    """
 
   # Uses loss of life as terminal signal
   def train(self):
