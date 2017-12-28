@@ -1,8 +1,8 @@
 from collections import deque
 import random
 import atari_py
+import cv2
 import torch
-from torch.nn import functional as F
 
 
 class Env():
@@ -23,10 +23,8 @@ class Env():
     self.training = True  # Consistent with model training mode
 
   def _get_state(self):
-    state = self.dtype(self.ale.getScreenGrayscale()).div_(255).view(1, 1, 210, 160)
-    # TODO: Replace downsampling with cv2.INTER_AREA for better downsampling
-    state = F.upsample(state, size=(84, 84), mode='bilinear')  # TODO: Check resizing is same as original/discretises to [0, 255] properly
-    return state.squeeze().data
+    state = cv2.resize(self.ale.getScreenGrayscale(), (84, 84), interpolation=cv2.INTER_AREA)  # Downsample with an appropriate interpolation algorithm
+    return self.dtype(state).div_(255)
 
   def _reset_buffer(self):
     for t in range(self.window):
