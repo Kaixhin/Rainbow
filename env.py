@@ -1,8 +1,8 @@
 from collections import deque
 import random
 import atari_py
-import cv2
 import torch
+import cv2  # Note that importing cv2 before torch may cause segfaults?
 
 
 class Env():
