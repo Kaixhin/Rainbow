@@ -40,7 +40,6 @@ parser.add_argument('--evaluation-interval', type=int, default=100000, metavar='
 parser.add_argument('--evaluation-episodes', type=int, default=10, metavar='N', help='Number of evaluation episodes to average over')
 parser.add_argument('--evaluation-size', type=int, default=500, metavar='N', help='Number of transitions to use for validating Q')
 parser.add_argument('--log-interval', type=int, default=25000, metavar='STEPS', help='Number of training steps between logging status')
-parser.add_argument('--render', action='store_true', help='Render evaluation agent')
 
 
 # Setup
@@ -130,5 +129,3 @@ else:
     state = Variable(next_state)
     if done:
       mem.postappend()  # Store empty transitition at end of episode
-
-env.close()

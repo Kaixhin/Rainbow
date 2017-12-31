@@ -78,11 +78,3 @@ class Env():
 
   def seed(self, seed):
     self.ale.setInt('random_seed', seed)
-
-  def render(self):
-    pass  # TODO
-    # self.env.render()
-
-  def close(self):
-    pass  # TODO
-    # self.env.close()

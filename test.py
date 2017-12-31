@@ -26,9 +26,6 @@ def test(args, T, dqn, val_mem, evaluate=False):
       if done:
         state, reward_sum, done = Variable(env.reset(), volatile=True), 0, False
 
-      if args.render:
-        env.render()
-
       action = dqn.act(state)  # Choose an action greedily
       state, reward, done = env.step(action)  # Step
       state = Variable(state, volatile=True)
@@ -37,7 +34,6 @@ def test(args, T, dqn, val_mem, evaluate=False):
       if done:
         T_rewards.append(reward_sum)
         break
-  env.close()
 
   # Test Q-values over validation memory
   for state in val_mem:  # Iterate over valid states
