@@ -10,10 +10,12 @@ class Env():
     super().__init__()
     self.dtype = torch.cuda.FloatTensor if args.cuda else torch.FloatTensor
     self.ale = atari_py.ALEInterface()
-    self.ale.loadROM(atari_py.get_game_path(args.game))
+    self.ale.setInt('random_seed', args.seed)
     self.ale.setInt('max_num_frames', args.max_episode_length)
     self.ale.setFloat('repeat_action_probability', 0)  # Disable sticky actions
-    self.ale.setInt('frame_skip', 4)  # TODO: Should input max over last 2 frames of 4
+    self.ale.setInt('frame_skip', 4)
+    self.ale.setBool('color_averaging', True)  # TODO: Should input max (not mean) over last 2 frames of 4
+    self.ale.loadROM(atari_py.get_game_path(args.game))  # ROM loading must be done after setting options
     actions = self.ale.getMinimalActionSet()
     self.actions = dict([i, e] for i, e in zip(range(len(actions)), actions))
     self.lives = 0  # Life counter (used in DeepMind training)
@@ -75,6 +77,3 @@ class Env():
 
   def action_space(self):
     return len(self.actions)
-
-  def seed(self, seed):
-    self.ale.setInt('random_seed', seed)

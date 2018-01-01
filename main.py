@@ -57,7 +57,6 @@ if args.cuda:
 
 # Environment
 env = Env(args)
-env.seed(args.seed)
 env.train()
 action_space = env.action_space()
 
