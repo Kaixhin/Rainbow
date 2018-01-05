@@ -11,7 +11,7 @@ class SumTree():
     self.size = size
     self.tree = [0] * (2 * size - 1)  # Initialise fixed size tree with all (priority) zeros
     self.data = [Transition(-1, torch.ByteTensor(84, 84).zero_(), None, 0, True)] * size  # Wrap-around cyclic buffer filled with (zero-priority) blank transitions
-    self.max = 0  # Store max value for fast retrieval
+    self.max = 1  # Store max value (initialised at 1) for fast retrieval
 
   # Propagates value up tree given a tree index
   def _propagate(self, index, update):
@@ -84,8 +84,8 @@ class ReplayMemory():
   # Adds state, action and reward at time t (technically reward from time t + 1, but kept at t for all buffers to be in sync)
   def append(self, state, action, reward):
     state = state[-1].mul(255).byte().cpu()  # Only store last frame and discretise to save memory
-    # Store new transition with maximum priority (or use initial priority 1)
-    self.transitions.append(Transition(self.t, state, action, reward, True), max(self.transitions.max, 1))
+    # Store new transition with maximum priority
+    self.transitions.append(Transition(self.t, state, action, reward, True), self.transitions.max)
     self.t += 1
 
   # Add empty state at end of episode
