@@ -120,9 +120,9 @@ class ReplayMemory():
 
     # Calculate truncated n-step discounted return R^n = Σ_k=0->n-1 (γ^k)R_t+k+1
     returns = [transition.reward for transition in full_transitions[self.history - 1]]
-    for n in range(self.n - 1):
+    for n in range(1, self.n):
       # Invalid nth next states have reward 0 and hence do not affect calculation
-      returns = [R + self.discount ** n * transition.reward for R, transition in zip(returns, full_transitions[self.history + n])]
+      returns = [R + self.discount ** n * transition.reward for R, transition in zip(returns, full_transitions[self.history + n - 1])]
     returns = self.dtype_float(returns)
 
     nonterminals = self.dtype_float([transition.nonterminal for transition in full_transitions[self.history + self.n - 1]]).unsqueeze(1)  # Mask for non-terminal nth next states
