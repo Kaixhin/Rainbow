@@ -46,17 +46,18 @@ class Agent():
 
   def learn(self, mem):
     idxs, states, actions, returns, next_states, nonterminals, weights = mem.sample(self.batch_size)
+    batch_size = len(idxs)  # May return less than specified if invalid transitions sampled
 
     # Calculate current state probabilities
     ps = self.policy_net(states)  # Probabilities p(s_t, ·; θpolicy)
-    ps_a = ps[range(self.batch_size), actions]  # p(s_t, a_t; θpolicy)
+    ps_a = ps[range(batch_size), actions]  # p(s_t, a_t; θpolicy)
 
     # Calculate nth next state probabilities
     pns = self.policy_net(next_states).data  # Probabilities p(s_t+n, ·; θpolicy)
     dns = self.support.expand_as(pns) * pns  # Distribution d_t+n = (z, p(s_t+n, ·; θpolicy))
     argmax_indices_ns = dns.sum(2).max(1)[1]  # Perform argmax action selection using policy network: argmax_a[(z, p(s_t+n, a; θpolicy))]
     pns = self.target_net(next_states).data  # Probabilities p(s_t+n, ·; θtarget)
-    pns_a = pns[range(self.batch_size), argmax_indices_ns]  # Double-Q probabilities p(s_t+n, argmax_a[(z, p(s_t+n, a; θpolicy))]; θtarget)
+    pns_a = pns[range(batch_size), argmax_indices_ns]  # Double-Q probabilities p(s_t+n, argmax_a[(z, p(s_t+n, a; θpolicy))]; θtarget)
     pns_a *= nonterminals  # Set p = 0 for terminal nth next states as all possible expected returns = expected reward at final transition
 
     # Compute Tz (Bellman operator T applied to z)
@@ -67,8 +68,8 @@ class Agent():
     l, u = b.floor().long(), b.ceil().long()
 
     # Distribute probability of Tz
-    m = states.data.new(self.batch_size, self.atoms).zero_()
-    offset = torch.linspace(0, ((self.batch_size - 1) * self.atoms), self.batch_size).long().unsqueeze(1).expand(self.batch_size, self.atoms).type_as(actions)
+    m = states.data.new(batch_size, self.atoms).zero_()
+    offset = torch.linspace(0, ((batch_size - 1) * self.atoms), batch_size).long().unsqueeze(1).expand(batch_size, self.atoms).type_as(actions)
     m.view(-1).index_add_(0, (l + offset).view(-1), (pns_a * (u.float() - b)).view(-1))  # m_l = m_l + p(s_t+n, a*)(u - b)
     m.view(-1).index_add_(0, (u + offset).view(-1), (pns_a * (b - l.float())).view(-1))  # m_u = m_u + p(s_t+n, a*)(b - l)
 

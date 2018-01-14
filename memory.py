@@ -100,6 +100,10 @@ class ReplayMemory():
     batch = [self.transitions.find(s) for s in samples]  # Retrieve samples from tree
     probs, idxs, tree_idxs = zip(*batch)  # Unpack unnormalised probabilities (priorities), data indices, tree indices
     # TODO: Check that transitions with 0 probability are not returned/make sure samples are valid
+    # If any transitions straddle current index, remove them (simpler than replacing with unique valid transitions)
+    probs, idxs, tree_idxs = self.dtype_float(probs), self.dtype_long(idxs), self.dtype_long(tree_idxs)
+    valid_idxs = idxs.sub(self.transitions.index).abs_() > max(self.history, self.n)
+    probs, idxs, tree_idxs = probs[valid_idxs], idxs[valid_idxs], tree_idxs[valid_idxs]
 
     # Retrieve all required transition data (from t - h to t + n)
     full_transitions = [[self.transitions.get(i + t) for i in idxs] for t in range(1 - self.history, self.n + 1)]  # Time x batch
@@ -119,14 +123,11 @@ class ReplayMemory():
     for n in range(self.n - 1):
       # Invalid nth next states have reward 0 and hence do not affect calculation
       returns = [R + self.discount ** n * transition.reward for R, transition in zip(returns, full_transitions[self.history + n])]
-    returns = self.dtype_float(returns)  # TODO: Make sure this doesn't cause issues around current buffer index
+    returns = self.dtype_float(returns)
 
-    nonterminals = [transition.nonterminal for transition in full_transitions[self.history + self.n - 1]] # Mask for non-terminal nth next states
-    for t in range(self.history, self.history + self.n):  # Hack: if nth next state is invalid (overlapping transition), treat it as terminal
-      nonterminals = [nonterm and (trans.timestep - pre_trans.timestep) == 1 for nonterm, trans, pre_trans in zip(nonterminals, full_transitions[t], full_transitions[t - 1])]
-    nonterminals = self.dtype_float(nonterminals).unsqueeze(1) 
+    nonterminals = self.dtype_float([transition.nonterminal for transition in full_transitions[self.history + self.n - 1]]).unsqueeze(1)  # Mask for non-terminal nth next states
 
-    probs = Variable(self.dtype_float(probs)) / p_total  # Calculate normalised probabilities
+    probs = Variable(probs) / p_total  # Calculate normalised probabilities
     weights = (self.capacity * probs) ** -self.priority_weight  # Compute importance-sampling weights w
     weights = weights / weights.max()   # Normalise by max importance-sampling weight from batch
 
