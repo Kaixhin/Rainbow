@@ -100,10 +100,11 @@ class ReplayMemory():
     samples = [random.uniform(i * segment, (i + 1) * segment) for i in range(batch_size)]  # Uniformly sample an element from each segment
     batch = [self.transitions.find(s) for s in samples]  # Retrieve samples from tree
     probs, idxs, tree_idxs = zip(*batch)  # Unpack unnormalised probabilities (priorities), data indices, tree indices
-    # TODO: Check that transitions with 0 probability are not returned/make sure samples are valid
-    # If any transitions straddle current index, remove them (simpler than replacing with unique valid transitions)
     probs, idxs, tree_idxs = self.dtype_float(probs), self.dtype_long(idxs), self.dtype_long(tree_idxs)
+    # If any transitions straddle current index, remove them (simpler than replacing with unique valid transitions)
     valid_idxs = idxs.sub(self.transitions.index).abs_() > max(self.history, self.n)
+    # If any transitions have 0 probability (priority), remove them (may not be necessary check)
+    valid_idxs.mul_(probs != 0)
     probs, idxs, tree_idxs = probs[valid_idxs], idxs[valid_idxs], tree_idxs[valid_idxs]
 
     # Retrieve all required transition data (from t - h to t + n)
