@@ -90,8 +90,9 @@ class ReplayMemory():
 
   # Add empty state at end of episode
   def postappend(self):
-    # Add blank state (used to replace terminal state) with zero priority
-    self.transitions.append(Transition(self.t, torch.ByteTensor(84, 84).zero_(), None, 0, False), 0)
+    # Add blank transitions (used to replace terminal state) with zero priority; simplifies truncated n-step discounted return calculations
+    for _ in range(self.n):
+      self.transitions.append(Transition(self.t, torch.ByteTensor(84, 84).zero_(), None, 0, False), 0)
 
   def sample(self, batch_size):
     p_total = self.transitions.total()  # Retrieve sum of all priorities (used to create a normalised probability distribution)
