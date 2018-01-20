@@ -31,7 +31,7 @@ class Env():
     return self.dtype(state).div_(255)
 
   def _reset_buffer(self):
-    for t in range(self.window):
+    for _ in range(self.window):
       self.buffer.append(self.dtype(84, 84).zero_())
 
   def reset(self):
@@ -43,7 +43,7 @@ class Env():
       self._reset_buffer()
       self.ale.reset_game()
       # Perform up to 30 random no-ops before starting
-      for t in range(random.randrange(30)):
+      for _ in range(random.randrange(30)):
         self.ale.act(0)  # Assumes raw action 0 is always no-op
         if self.ale.game_over():
           self.ale.reset_game()

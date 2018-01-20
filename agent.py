@@ -1,4 +1,5 @@
 import os
+import random
 import torch
 from torch import nn, optim
 from torch.autograd import Variable
@@ -43,6 +44,10 @@ class Agent():
   # Acts based on single state (no batch)
   def act(self, state):
     return (self.policy_net(state.unsqueeze(0)).data * self.support).sum(2).max(1)[1][0]
+
+  # Acts with an ε-greedy policy
+  def act_e_greedy(self, state, epsilon=0.001):
+    return random.randrange(self.action_space) if random.random() < epsilon else self.act(state)
 
   def learn(self, mem):
     idxs, states, actions, returns, next_states, nonterminals, weights = mem.sample(self.batch_size)

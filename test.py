@@ -20,12 +20,12 @@ def test(args, T, dqn, val_mem, evaluate=False):
 
   # Test performance over several episodes
   done = True
-  for ep in range(args.evaluation_episodes):
+  for _ in range(args.evaluation_episodes):
     while True:
       if done:
         state, reward_sum, done = Variable(env.reset(), volatile=True), 0, False
 
-      action = dqn.act(state)  # Choose an action greedily
+      action = dqn.act_e_greedy(state)  # Choose an action ε-greedily
       state, reward, done = env.step(action)  # Step
       state = Variable(state, volatile=True)
       reward_sum += reward
