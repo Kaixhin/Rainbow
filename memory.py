@@ -101,7 +101,7 @@ class ReplayMemory():
     batch = [self.transitions.find(s) for s in samples]  # Retrieve samples from tree
     probs, idxs, tree_idxs = zip(*batch)  # Unpack unnormalised probabilities (priorities), data indices, tree indices
     probs, idxs, tree_idxs = self.dtype_float(probs), self.dtype_long(idxs), self.dtype_long(tree_idxs)
-    # If any transitions straddle current index, remove them (simpler than replacing with unique valid transitions)
+    # If any transitions straddle current index, remove them (simpler than replacing with unique valid transitions) TODO: Separate out pre- and post-index
     valid_idxs = idxs.sub(self.transitions.index).abs_() > max(self.history, self.n)
     # If any transitions have 0 probability (priority), remove them (may not be necessary check)
     valid_idxs.mul_(probs != 0)

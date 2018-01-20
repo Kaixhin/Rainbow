@@ -22,10 +22,12 @@ class Env():
     self.life_termination = False  # Used to check if resetting only from loss of life
     self.window = args.history_length  # Number of frames to concatenate
     self.buffer = deque([], maxlen=args.history_length)
+    self.screen = [[0] * 160] * 210  # Screen for rendering
     self.training = True  # Consistent with model training mode
 
   def _get_state(self):
-    state = cv2.resize(self.ale.getScreenGrayscale(), (84, 84), interpolation=cv2.INTER_AREA)  # Downsample with an appropriate interpolation algorithm
+    self.screen = self.ale.getScreenGrayscale()
+    state = cv2.resize(self.screen, (84, 84), interpolation=cv2.INTER_AREA)  # Downsample with an appropriate interpolation algorithm
     return self.dtype(state).div_(255)
 
   def _reset_buffer(self):
@@ -77,3 +79,10 @@ class Env():
 
   def action_space(self):
     return len(self.actions)
+
+  def render(self):
+    cv2.imshow('screen', self.screen)
+    cv2.waitKey(1)
+
+  def close(self):
+    cv2.destroyAllWindows()
