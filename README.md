@@ -2,7 +2,7 @@ Rainbow
 =======
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE.md)
 
-Rainbow: Combining Improvements in Deep Reinforcement Learning [[1]](#references).
+Rainbow: Combining Improvements in Deep Reinforcement Learning [[1]](#references). Work in progress.
 
 - [x] DQN [[2]](#references)
 - [x] Double DQN [[3]](#references)
