@@ -4,59 +4,62 @@ import torch
 from torch.autograd import Variable
 
 
-# Segment tree data structure where parent node values are sum of children node values
-class SumTree():
+Transition = namedtuple('Transition', ('timestep', 'state', 'action', 'reward', 'nonterminal'))
+
+
+# Segment tree data structure where parent node values are sum/max of children node values
+class SegmentTree():
   def __init__(self, size):
     self.index = 0
     self.size = size
-    self.tree = [0] * (2 * size - 1)  # Initialise fixed size tree with all (priority) zeros
+    self.sum_tree = [0] * (2 * size - 1)  # Initialise fixed size tree with all (priority) zeros
+    self.max_tree = [1] * (2 * size - 1)  # Initialise with all ones (incorrect, but sum tree is used for sampling)
     self.data = [Transition(-1, torch.ByteTensor(84, 84).zero_(), None, 0, True)] * size  # Wrap-around cyclic buffer filled with (zero-priority) blank transitions
-    self.max = 1  # Store max value (initialised at 1) for fast retrieval
 
   # Propagates value up tree given a tree index
-  def _propagate(self, index, update):
+  def _propagate(self, index, value):
     parent = (index - 1) // 2
-    self.tree[parent] += update  # Propagate change in value rather than absolute value
+    left, right = 2 * parent + 1, 2 * parent + 2
+    self.sum_tree[parent] = self.sum_tree[left] + self.sum_tree[right]
+    self.max_tree[parent] = max(self.max_tree[left], self.max_tree[right])
     if parent != 0:
-      self._propagate(parent, update)
+      self._propagate(parent, value)
 
   # Updates value given a tree index
   def update(self, index, value):
-    update = value - self.tree[index]
-    self.tree[index] = value  # Set new value
-    self._propagate(index, update)  # Propagate change
-    self.max = max(self.max, value)  # Update max
+    self.sum_tree[index], self.max_tree[index] = value, value  # Set new value
+    self._propagate(index, value)  # Propagate value
 
   def append(self, data, value):
     self.data[self.index] = data  # Store data in underlying data structure
     self.update(self.index + self.size - 1, value)  # Update tree
     self.index = (self.index + 1) % self.size  # Update index
 
-  # Searches for the location of a value
+  # Searches for the location of a value in sum tree
   def _retrieve(self, index, value):
     left, right = 2 * index + 1, 2 * index + 2
-    if left >= len(self.tree):
+    if left >= len(self.sum_tree):
       return index
-    elif value <= self.tree[left]:
+    elif value <= self.sum_tree[left]:
       return self._retrieve(left, value)
     else:
-      return self._retrieve(right, value - self.tree[left])
+      return self._retrieve(right, value - self.sum_tree[left])
 
-  # Searches for a value and returns value, data index and tree index
+  # Searches for a value in sum tree and returns value, data index and tree index
   def find(self, value):
     index = self._retrieve(0, value)  # Search for index of item from root
     data_index = index - self.size + 1
-    return (self.tree[index], data_index, index)  # Return value, data index, tree index
+    return (self.sum_tree[index], data_index, index)  # Return value, data index, tree index
 
   # Returns data given a data index
   def get(self, data_index):
     return self.data[data_index % self.size]
 
   def total(self):
-    return self.tree[0]
+    return self.sum_tree[0]
 
-
-Transition = namedtuple('Transition', ('timestep', 'state', 'action', 'reward', 'nonterminal'))
+  def max(self):
+    return self.max_tree[0]
 
 
 class ReplayMemory():
@@ -71,27 +74,23 @@ class ReplayMemory():
     self.n = args.multi_step
     self.priority_weight = args.priority_weight  # Initial importance sampling weight β, annealed to 1 over course of training
     self.t = 0  # Internal episode timestep counter
-    self.transitions = SumTree(capacity)  # Store transitions in a wrap-around cyclic buffer within a sum tree for querying priorities
+    self.transitions = SegmentTree(capacity)  # Store transitions in a wrap-around cyclic buffer within a sum tree for querying priorities
 
   # Add empty states to prepare for new episode
   def preappend(self):
     self.t = 0
-    # Blank transitions from before episode
-    for h in range(-self.history + 1, 0):
-      # Add blank state with zero priority
-      self.transitions.append(Transition(h, torch.ByteTensor(84, 84).zero_(), None, 0, True), 0)
+    for h in range(-self.history + 1, 0):  # Blank transitions from before episode
+      self.transitions.append(Transition(h, torch.ByteTensor(84, 84).zero_(), None, 0, True), 0)  # Add blank state with zero priority
 
   # Adds state, action and reward at time t (technically reward from time t + 1, but kept at t for all buffers to be in sync)
   def append(self, state, action, reward):
     state = state[-1].mul(255).byte().cpu()  # Only store last frame and discretise to save memory
-    # Store new transition with maximum priority
-    self.transitions.append(Transition(self.t, state, action, reward, True), self.transitions.max)
+    self.transitions.append(Transition(self.t, state, action, reward, True), self.transitions.max())  # Store new transition with maximum priority
     self.t += 1
 
   # Add empty state at end of episode
   def postappend(self):
-    # Add blank transitions (used to replace terminal state) with zero priority; simplifies truncated n-step discounted return calculations
-    for _ in range(self.n):
+    for _ in range(self.n):  # Add blank transitions (used to replace terminal state) with zero priority; simplifies truncated n-step discounted return
       self.transitions.append(Transition(self.t, torch.ByteTensor(84, 84).zero_(), None, 0, False), 0)
 
   def sample(self, batch_size):
