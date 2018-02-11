@@ -76,11 +76,15 @@ while T < args.evaluation_size - args.history_length + 1:
     state, done = env.reset(), False
     val_mem.preappend()  # Set up memory for beginning of episode
 
-  val_mem.append(state, None, None)
+  val_mem.append(state, 0, 0)
   state, _, done = env.step(random.randint(0, action_space - 1))
   T += 1
   if done:
     val_mem.postappend()  # Store empty transitition at end of episode
+    d = val_mem.get_loader()
+    print(next(d))
+    print(next(d))
+    quit()
 
 
 if args.evaluate:

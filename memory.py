@@ -2,6 +2,11 @@ import random
 from collections import namedtuple
 import torch
 from torch.autograd import Variable
+from torch.utils.data import Dataset, DataLoader
+from torch.utils.data.sampler import Sampler
+
+
+Transition = namedtuple('Transition', ('timestep', 'state', 'action', 'reward', 'nonterminal'))
 
 
 # Segment tree data structure where parent node values are sum of children node values
@@ -56,11 +61,34 @@ class SumTree():
     return self.tree[0]
 
 
-Transition = namedtuple('Transition', ('timestep', 'state', 'action', 'reward', 'nonterminal'))
+class PrioritySampler(Sampler):
+  def __init__(self, transitions, batch_size, history, n):
+    self.transitions = transitions
+    self.batch_size = batch_size
+    self.history = history
+    self.n = n
+
+  def __iter__(self):
+    p_total = self.transitions.total()  # Retrieve sum of all priorities (used to create a normalised probability distribution)
+    segment = p_total / self.batch_size  # Batch size number of segments, based on sum over all probabilities
+    samples = [random.uniform(i * segment, (i + 1) * segment) for i in range(self.batch_size)]  # Uniformly sample an element from each segment
+    batch = [self.transitions.find(s) for s in samples]  # Retrieve samples from tree
+    probs, idxs, tree_idxs = zip(*batch)  # Unpack unnormalised probabilities (priorities), data indices, tree indices
+    probs, idxs, tree_idxs = torch.FloatTensor(probs), torch.LongTensor(idxs), torch.LongTensor(tree_idxs)
+    # If any transitions straddle current index, remove them (simpler than replacing with unique valid transitions) TODO: Separate out pre- and post-index
+    valid_idxs = idxs.sub(self.transitions.index).abs_() > max(self.history, self.n)
+    # If any transitions have 0 probability (priority), remove them (may not be necessary check)
+    valid_idxs.mul_(probs != 0)
+    probs, idxs, tree_idxs = probs[valid_idxs], idxs[valid_idxs], tree_idxs[valid_idxs]
+    yield idxs
+
+  def __len__(self):
+    return 0
 
 
-class ReplayMemory():
+class ReplayMemory(Dataset):
   def __init__(self, args, capacity):
+    self.cuda = args.cuda
     self.dtype_byte = torch.cuda.ByteTensor if args.cuda else torch.ByteTensor
     self.dtype_long = torch.cuda.LongTensor if args.cuda else torch.LongTensor
     self.dtype_float = torch.cuda.FloatTensor if args.cuda else torch.FloatTensor
@@ -72,6 +100,7 @@ class ReplayMemory():
     self.priority_weight = args.priority_weight  # Initial importance sampling weight β, annealed to 1 over course of training
     self.t = 0  # Internal episode timestep counter
     self.transitions = SumTree(capacity)  # Store transitions in a wrap-around cyclic buffer within a sum tree for querying priorities
+    self.batch_size = args.batch_size
 
   # Add empty states to prepare for new episode
   def preappend(self):
@@ -94,46 +123,38 @@ class ReplayMemory():
     for _ in range(self.n):
       self.transitions.append(Transition(self.t, torch.ByteTensor(84, 84).zero_(), None, 0, False), 0)
 
-  def sample(self, batch_size):
-    p_total = self.transitions.total()  # Retrieve sum of all priorities (used to create a normalised probability distribution)
-    segment = p_total / batch_size  # Batch size number of segments, based on sum over all probabilities
-    samples = [random.uniform(i * segment, (i + 1) * segment) for i in range(batch_size)]  # Uniformly sample an element from each segment
-    batch = [self.transitions.find(s) for s in samples]  # Retrieve samples from tree
-    probs, idxs, tree_idxs = zip(*batch)  # Unpack unnormalised probabilities (priorities), data indices, tree indices
-    probs, idxs, tree_idxs = self.dtype_float(probs), self.dtype_long(idxs), self.dtype_long(tree_idxs)
-    # If any transitions straddle current index, remove them (simpler than replacing with unique valid transitions) TODO: Separate out pre- and post-index
-    valid_idxs = idxs.sub(self.transitions.index).abs_() > max(self.history, self.n)
-    # If any transitions have 0 probability (priority), remove them (may not be necessary check)
-    valid_idxs.mul_(probs != 0)
-    probs, idxs, tree_idxs = probs[valid_idxs], idxs[valid_idxs], tree_idxs[valid_idxs]
+  def __getitem__(self, idx):
+    transition = [self.transitions.get(idx + t) for t in range(1 - self.history, self.n + 1)]
 
-    # Retrieve all required transition data (from t - h to t + n)
-    full_transitions = [[self.transitions.get(i + t) for i in idxs] for t in range(1 - self.history, self.n + 1)]  # Time x batch
+    # Create un-discretised state and nth next state
+    state = torch.stack([trans.state for trans in transition[:self.history]]).type(self.dtype_float).div_(255)
+    next_state = torch.stack([trans.state for trans in transition[self.n:self.n + self.history]]).type(self.dtype_float).div_(255)  # nth next state
 
-    # Create stack of states and nth next states
-    state_stack, next_state_stack = [], []
-    for t in range(self.history):
-      state_stack.append(torch.stack([transition.state for transition in full_transitions[t]], 0))
-      next_state_stack.append(torch.stack([transition.state for transition in full_transitions[t + self.n]], 0))  # nth next state
-    states = Variable(torch.stack(state_stack, 1).type(self.dtype_float).div_(255))  # Un-discretise
-    next_states = Variable(torch.stack(next_state_stack, 1).type(self.dtype_float).div_(255), volatile=True)
-
-    actions = self.dtype_long([transition.action for transition in full_transitions[self.history - 1]])
+    action = self.dtype_long([transition[self.history - 1].action])
 
     # Calculate truncated n-step discounted return R^n = Σ_k=0->n-1 (γ^k)R_t+k+1
-    returns = [transition.reward for transition in full_transitions[self.history - 1]]
+    R = self.dtype_float([transition[self.history - 1].reward])
     for n in range(1, self.n):
       # Invalid nth next states have reward 0 and hence do not affect calculation
-      returns = [R + self.discount ** n * transition.reward for R, transition in zip(returns, full_transitions[self.history + n - 1])]
-    returns = self.dtype_float(returns)
+      R += self.discount ** n * transition[self.history + n - 1].reward
 
-    nonterminals = self.dtype_float([transition.nonterminal for transition in full_transitions[self.history + self.n - 1]]).unsqueeze(1)  # Mask for non-terminal nth next states
+    nonterminal = self.dtype_float([transition[self.history + self.n - 1].nonterminal])  # Mask for non-terminal nth next states
 
+    return state, action, R, next_state, nonterminal
+
+  def __len__(self):
+    return self.capacity  # TODO: Return number of valid samples?
+
+  def get_loader(self):
+    return iter(DataLoader(self, batch_sampler=PrioritySampler(self.transitions, self.batch_size, self.history, self.n), num_workers=8, pin_memory=self.cuda))
+
+    """
     probs = Variable(probs) / p_total  # Calculate normalised probabilities
     weights = (self.capacity * probs) ** -self.priority_weight  # Compute importance-sampling weights w
     weights = weights / weights.max()   # Normalise by max importance-sampling weight from batch
 
     return tree_idxs, states, actions, returns, next_states, nonterminals, weights
+    """
 
   def update_priorities(self, idxs, priorities):
     [self.transitions.update(idx, priority) for idx, priority in zip(idxs, priorities)]
