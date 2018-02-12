@@ -13,7 +13,7 @@ class SegmentTree():
     self.index = 0
     self.size = size
     self.sum_tree = [0] * (2 * size - 1)  # Initialise fixed size tree with all (priority) zeros
-    self.max_tree = [1] * (2 * size - 1)  # Initialise with all ones (incorrect, but sum tree is used for sampling)
+    self.max_tree = [1] * (2 * size - 1)  # Initialise with all ones (incorrect as max will always be >= 1, but sum tree is used for sampling)
     self.data = [Transition(-1, torch.ByteTensor(84, 84).zero_(), None, 0, True)] * size  # Wrap-around cyclic buffer filled with (zero-priority) blank transitions
 
   # Propagates value up tree given a tree index
@@ -93,18 +93,22 @@ class ReplayMemory():
     for _ in range(self.n):  # Add blank transitions (used to replace terminal state) with zero priority; simplifies truncated n-step discounted return
       self.transitions.append(Transition(self.t, torch.ByteTensor(84, 84).zero_(), None, 0, False), 0)
 
+  # Returns a valid sample from a segment
+  def _get_sample_from_segment(self, segment, i):
+    valid = False
+    while not valid:
+      sample = random.uniform(i * segment, (i + 1) * segment)  # Uniformly sample an element from within a segment
+      prob, idx, tree_idx = self.transitions.find(sample)  # Retrieve sample from tree
+      # Resample if transition straddled current index or probablity 0 TODO: Separate out pre- and post-index
+      if abs(idx - self.transitions.index) > max(self.history, self.n) and prob != 0:
+        valid = True
+    return prob, idx, tree_idx
+
   def sample(self, batch_size):
     p_total = self.transitions.total()  # Retrieve sum of all priorities (used to create a normalised probability distribution)
     segment = p_total / batch_size  # Batch size number of segments, based on sum over all probabilities
-    samples = [random.uniform(i * segment, (i + 1) * segment) for i in range(batch_size)]  # Uniformly sample an element from each segment
-    batch = [self.transitions.find(s) for s in samples]  # Retrieve samples from tree
+    batch = [self._get_sample_from_segment(segment, i) for i in range(batch_size)]  # Get batch of valid samples
     probs, idxs, tree_idxs = zip(*batch)  # Unpack unnormalised probabilities (priorities), data indices, tree indices
-    probs, idxs, tree_idxs = self.dtype_float(probs), self.dtype_long(idxs), self.dtype_long(tree_idxs)
-    # If any transitions straddle current index, remove them (simpler than replacing with unique valid transitions) TODO: Separate out pre- and post-index
-    valid_idxs = idxs.sub(self.transitions.index).abs_() > max(self.history, self.n)
-    # If any transitions have 0 probability (priority), remove them (may not be necessary check)
-    valid_idxs.mul_(probs != 0)
-    probs, idxs, tree_idxs = probs[valid_idxs], idxs[valid_idxs], tree_idxs[valid_idxs]
 
     # Retrieve all required transition data (from t - h to t + n)
     full_transitions = [[self.transitions.get(i + t) for i in idxs] for t in range(1 - self.history, self.n + 1)]  # Time x batch
@@ -128,7 +132,7 @@ class ReplayMemory():
 
     nonterminals = self.dtype_float([transition.nonterminal for transition in full_transitions[self.history + self.n - 1]]).unsqueeze(1)  # Mask for non-terminal nth next states
 
-    probs = Variable(probs) / p_total  # Calculate normalised probabilities
+    probs = Variable(self.dtype_float(probs)) / p_total  # Calculate normalised probabilities
     weights = (self.capacity * probs) ** -self.priority_weight  # Compute importance-sampling weights w
     weights = weights / weights.max()   # Normalise by max importance-sampling weight from batch
 
