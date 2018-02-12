@@ -12,6 +12,7 @@ class SegmentTree():
   def __init__(self, size):
     self.index = 0
     self.size = size
+    self.full = False  # Used to track actual capacity
     self.sum_tree = [0] * (2 * size - 1)  # Initialise fixed size tree with all (priority) zeros
     self.max_tree = [1] * (2 * size - 1)  # Initialise with all ones (incorrect as max will always be >= 1, but sum tree is used for sampling)
     self.data = [Transition(-1, torch.ByteTensor(84, 84).zero_(), None, 0, True)] * size  # Wrap-around cyclic buffer filled with (zero-priority) blank transitions
@@ -34,6 +35,7 @@ class SegmentTree():
     self.data[self.index] = data  # Store data in underlying data structure
     self.update(self.index + self.size - 1, value)  # Update tree
     self.index = (self.index + 1) % self.size  # Update index
+    self.full = self.full or self.index == 0  # Save when capacity reached
 
   # Searches for the location of a value in sum tree
   def _retrieve(self, index, value):
@@ -130,7 +132,8 @@ class ReplayMemory():
     states, next_states, = Variable(torch.stack(states)), Variable(torch.stack(next_states), volatile=True)
     actions, returns, nonterminals = torch.cat(actions), torch.cat(returns), torch.stack(nonterminals)
     probs = Variable(self.dtype_float(probs)) / p_total  # Calculate normalised probabilities
-    weights = (self.capacity * probs) ** -self.priority_weight  # Compute importance-sampling weights w
+    capacity = self.capacity if self.transitions.full else self.transitions.index
+    weights = (capacity * probs) ** -self.priority_weight  # Compute importance-sampling weights w
     weights = weights / weights.max()   # Normalise by max importance-sampling weight from batch
     return tree_idxs, states, actions, returns, next_states, nonterminals, weights
 
