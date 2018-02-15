@@ -79,8 +79,7 @@ while T < args.evaluation_size - args.history_length + 1:
   val_mem.append(state, None, None)
   state, _, done = env.step(random.randint(0, action_space - 1))
   T += 1
-  if done:
-    val_mem.postappend()  # Store empty transitition at end of episode
+  # No need to postappend on done in validation memory
 
 
 if args.evaluate:

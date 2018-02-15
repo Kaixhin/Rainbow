@@ -145,7 +145,7 @@ class ReplayMemory():
     # Find indices for valid samples
     self.valid_idxs = []
     for t in range(self.capacity):
-      if self.transitions.data[t].timestep >= 0:
+      if self.transitions.data[t].timestep >= 0:  # Valid when using preappend but not postappend
         self.valid_idxs.append(t)
     self.current_idx = 0
     return self
