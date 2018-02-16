@@ -49,6 +49,7 @@ class NoisyLinear(nn.Module):
 class DQN(nn.Module):
   def __init__(self, args, action_space):
     super().__init__()
+    self.atoms = args.atoms
     self.action_space = action_space
 
     self.conv1 = nn.Conv2d(args.history_length, 32, 8, stride=4, padding=1)
@@ -62,11 +63,11 @@ class DQN(nn.Module):
     x = F.relu(self.conv1(x))
     x = F.relu(self.conv2(x))
     x = F.relu(self.conv3(x))
-    x = F.relu(self.fc_h(x.view(x.size(0), -1)))
+    x = F.relu(self.fc_h(x.view(-1, 3136)))
     v, a = self.fc_z_v(x), self.fc_z_a(x)  # Calculate value and advantage streams
-    a_mean = torch.stack(a.chunk(self.action_space, 1), 1).mean(1)
-    x = v.repeat(1, self.action_space) + a - a_mean.repeat(1, self.action_space)  # Combine streams
-    p = torch.stack([F.softmax(p, dim=1) for p in x.chunk(self.action_space, 1)], 1)  # Probabilities with action over second dimension
+    v, a = v.view(-1, 1, self.atoms), a.view(-1, self.action_space, self.atoms)
+    q = v + a - a.mean(1, keepdim=True)  # Combine streams
+    p = F.softmax(q, dim=2)  # Probabilities with action over second dimension
     return p.clamp(min=1e-12, max=1 - 1e-12)  # Use clipping to prevent NaNs
 
   def reset_noise(self):
