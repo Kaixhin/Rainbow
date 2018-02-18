@@ -28,6 +28,7 @@ Acknowledgements
 - [@floringogianu](https://github.com/floringogianu) for [categorical-dqn](https://github.com/floringogianu/categorical-dqn)
 - [@jvmancuso](https://github.com/jvmancuso) for [Noisy layer](https://github.com/pytorch/pytorch/pull/2103)
 - [@jaara](https://github.com/jaara) for [AI-blog](https://github.com/jaara/AI-blog)
+- [@openai](https://github.com/openai) for [Baselines](https://github.com/openai/baselines)
 
 References
 ----------
