@@ -48,7 +48,6 @@ args = parser.parse_args()
 print(' ' * 26 + 'Options')
 for k, v in vars(args).items():
   print(' ' * 26 + k + ': ' + str(v))
-assert args.batch_size < args.learn_start  # TODO: Add in more checks? Quite a lot could be done
 args.cuda = torch.cuda.is_available() and not args.disable_cuda
 random.seed(args.seed)
 torch.manual_seed(random.randint(1, 10000))

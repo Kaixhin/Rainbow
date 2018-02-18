@@ -114,11 +114,8 @@ class ReplayMemory():
 
     action = self.dtype_long([transition[self.history - 1].action])
 
-    # Calculate truncated n-step discounted return R^n = Σ_k=0->n-1 (γ^k)R_t+k+1
-    R = self.dtype_float([transition[self.history - 1].reward])
-    for n in range(1, self.n):
-      # Invalid nth next states have reward 0 and hence do not affect calculation
-      R += self.discount ** n * transition[self.history + n - 1].reward
+    # Calculate truncated n-step discounted return R^n = Σ_k=0->n-1 (γ^k)R_t+k+1 (note that invalid nth next states have reward 0)
+    R = self.dtype_float([sum(self.discount ** n * transition[self.history + n - 1].reward for n in range(self.n))])
 
     nonterminal = self.dtype_float([transition[self.history + self.n - 1].nonterminal])  # Mask for non-terminal nth next states
 
