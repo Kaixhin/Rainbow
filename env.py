@@ -27,7 +27,7 @@ class Env():
 
   def _get_state(self):
     self.screen = self.ale.getScreenGrayscale()
-    state = cv2.resize(self.screen, (84, 84), interpolation=cv2.INTER_AREA)  # Downsample with an appropriate interpolation algorithm
+    state = cv2.resize(self.screen, (84, 84), interpolation=cv2.INTER_LINEAR)  # Downsample with an appropriate interpolation algorithm
     return self.dtype(state).div_(255)
 
   def _reset_buffer(self):
