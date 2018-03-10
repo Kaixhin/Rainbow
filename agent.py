@@ -28,7 +28,9 @@ class Agent():
 
     self.target_net = DQN(args, self.action_space)
     self.update_target_net()
-    self.target_net.eval()
+    self.target_net.train()
+    for param in self.target_net.parameters():
+      param.requires_grad = False
 
     self.optimiser = optim.Adam(self.policy_net.parameters(), lr=args.lr, eps=args.adam_eps)
     if args.cuda:
@@ -41,6 +43,10 @@ class Agent():
     self.policy_net.reset_noise()
     self.target_net.reset_noise()
 
+  def reset_batch_noise(self):
+    self.policy_net.reset_batch_noise()
+    self.target_net.reset_batch_noise()
+
   # Acts based on single state (no batch)
   def act(self, state):
     return (self.policy_net(state.unsqueeze(0)).data * self.support).sum(2).max(1)[1][0]
@@ -50,6 +56,9 @@ class Agent():
     return random.randrange(self.action_space) if random.random() < epsilon else self.act(state)
 
   def learn(self, mem):
+    # Sample new noise variable per transition
+    self.reset_batch_noise()
+
     idxs, states, actions, returns, next_states, nonterminals, weights = mem.sample(self.batch_size)
 
     # Calculate current state probabilities

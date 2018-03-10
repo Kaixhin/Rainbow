@@ -106,8 +106,9 @@ else:
 
     # Train and test
     if T >= args.learn_start:
+      mem.priority_weight = min(mem.priority_weight + priority_weight_increase, 1)  # Anneal importance sampling weight β to 1
+
       if T % args.replay_frequency == 0:
-        mem.priority_weight = min(mem.priority_weight + priority_weight_increase, 1)  # Anneal importance sampling weight β to 1
         dqn.learn(mem)  # Train with n-step distributional double-Q learning
         dqn.reset_noise()  # Draw a new set of noisy weights after optimisation
 
@@ -117,9 +118,9 @@ else:
         print('T = ' + str(T) + ' / ' + str(args.T_max) + ' | Avg. reward: ' + str(avg_reward) + ' | Avg. Q: ' + str(avg_Q))
         dqn.train()  # Set DQN (policy network) back to training mode
 
-    # Update target network
-    if T % args.target_update == 0:
-      dqn.update_target_net()
+      # Update target network
+      if T % args.target_update == 0:
+        dqn.update_target_net()
 
     if T % args.log_interval == 0:
       print('T = ' + str(T) + ' / ' + str(args.T_max))
