@@ -34,20 +34,19 @@ class NoisyLinear(nn.Module):
 
   def _scale_noise(self, size):
     x = torch.randn(size)
-    x = x.sign().mul_(x.abs().sqrt_())
-    return x
+    return x.sign().mul_(x.abs().sqrt_())
 
   def reset_noise(self):
     epsilon_in = self._scale_noise(self.in_features)
     epsilon_out = self._scale_noise(self.out_features)
     self.weight_epsilon.copy_(epsilon_out.ger(epsilon_in))
-    self.bias_epsilon.copy_(self._scale_noise(self.out_features))
+    self.bias_epsilon.copy_(epsilon_out)
 
   def reset_batch_noise(self):
     epsilon_in = self._scale_noise(self.batch_size * self.in_features).view(self.batch_size, 1, self.in_features)
     epsilon_out = self._scale_noise(self.batch_size * self.out_features).view(self.batch_size, self.out_features, 1)
     self.weight_epsilon_batch.copy_(torch.bmm(epsilon_out, epsilon_in))
-    self.bias_epsilon_batch.copy_(self._scale_noise(self.batch_size * self.out_features).view(self.batch_size, self.out_features))
+    self.bias_epsilon_batch.copy_(epsilon_out.squeeze(2))
 
   def forward(self, input):
     output = F.linear(input, self.weight_mu, self.bias_mu)

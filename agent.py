@@ -92,7 +92,7 @@ class Agent():
     nn.utils.clip_grad_norm(self.policy_net.parameters(), self.max_gradient_norm)  # Clip gradients (normalising by max value of gradient L2 norm)
     self.optimiser.step()
 
-    mem.update_priorities(idxs, loss.data.abs().pow(self.priority_exponent))  # Update priorities of sampled transitions
+    mem.update_priorities(idxs, loss.data.pow(self.priority_exponent))  # Update priorities of sampled transitions
 
   def update_target_net(self):
     self.target_net.load_state_dict(self.policy_net.state_dict())

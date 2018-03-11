@@ -7,7 +7,6 @@ import cv2  # Note that importing cv2 before torch may cause segfaults?
 
 class Env():
   def __init__(self, args):
-    super().__init__()
     self.dtype = torch.cuda.FloatTensor if args.cuda else torch.FloatTensor
     self.ale = atari_py.ALEInterface()
     self.ale.setInt('random_seed', args.seed)
