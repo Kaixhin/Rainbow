@@ -26,15 +26,15 @@ class NoisyLinear(nn.Module):
     self.reset_batch_noise()
 
   def reset_parameters(self):
-    mu_range = 1 / math.sqrt(self.weight_mu.size(1))
+    mu_range = 1 / math.sqrt(self.in_features)
     self.weight_mu.data.uniform_(-mu_range, mu_range)
-    self.weight_sigma.data.fill_(self.std_init / math.sqrt(self.weight_sigma.size(1)))
+    self.weight_sigma.data.fill_(self.std_init / math.sqrt(self.in_features))
     self.bias_mu.data.uniform_(-mu_range, mu_range)
-    self.bias_sigma.data.fill_(self.std_init / math.sqrt(self.bias_sigma.size(0)))
+    self.bias_sigma.data.fill_(self.std_init / math.sqrt(self.out_features))
 
   def _scale_noise(self, size):
     x = torch.randn(size)
-    x = x.sign().mul(x.abs().sqrt())
+    x = x.sign().mul_(x.abs().sqrt_())
     return x
 
   def reset_noise(self):
@@ -44,11 +44,10 @@ class NoisyLinear(nn.Module):
     self.bias_epsilon.copy_(self._scale_noise(self.out_features))
 
   def reset_batch_noise(self):
-    for b in range(self.batch_size):
-      epsilon_in = self._scale_noise(self.in_features)
-      epsilon_out = self._scale_noise(self.out_features)
-      self.weight_epsilon_batch[b].copy_(epsilon_out.ger(epsilon_in))
-      self.bias_epsilon_batch[b].copy_(self._scale_noise(self.out_features))
+    epsilon_in = self._scale_noise(self.batch_size * self.in_features).view(self.batch_size, 1, self.in_features)
+    epsilon_out = self._scale_noise(self.batch_size * self.out_features).view(self.batch_size, self.out_features, 1)
+    self.weight_epsilon_batch.copy_(torch.bmm(epsilon_out, epsilon_in))
+    self.bias_epsilon_batch.copy_(self._scale_noise(self.batch_size * self.out_features).view(self.batch_size, self.out_features))
 
   def forward(self, input):
     output = F.linear(input, self.weight_mu, self.bias_mu)
