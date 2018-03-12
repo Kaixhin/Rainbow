@@ -38,11 +38,11 @@ class Agent():
       self.target_net.cuda()
       self.support = self.support.cuda()
 
-  # Resets noisy weights in all linear layers (of policy and target nets)
+  # Resets noisy weights in all linear layers (of policy net only)
   def reset_noise(self):
     self.policy_net.reset_noise()
-    self.target_net.reset_noise()
 
+  # Resets batch noisy weights in all linear layers (of policy and target nets)
   def reset_batch_noise(self):
     self.policy_net.reset_batch_noise()
     self.target_net.reset_batch_noise()
@@ -88,7 +88,7 @@ class Agent():
 
     loss = -torch.sum(Variable(m) * ps_a.log(), 1)  # Cross-entropy loss (minimises Kullback-Leibler divergence)
     self.policy_net.zero_grad()
-    (weights * loss).mean().backward()  # Importance weight losses
+    (weights * loss).sum().backward()  # Importance weight losses
     nn.utils.clip_grad_norm(self.policy_net.parameters(), self.max_gradient_norm)  # Clip gradients (normalising by max value of gradient L2 norm)
     self.optimiser.step()
 

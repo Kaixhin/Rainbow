@@ -1,4 +1,5 @@
 import argparse
+from datetime import datetime
 import random
 import torch
 from torch.autograd import Variable
@@ -53,6 +54,12 @@ random.seed(args.seed)
 torch.manual_seed(random.randint(1, 10000))
 if args.cuda:
   torch.cuda.manual_seed(random.randint(1, 10000))
+  torch.backends.cudnn.benchmark = True
+
+
+# Simple timestamped logger
+def log(s):
+  print('[' + str(datetime.now().time()) + '] ' + s)
 
 
 # Environment
@@ -79,6 +86,7 @@ while T < args.evaluation_size - args.history_length + 1:
   state, _, done = env.step(random.randint(0, action_space - 1))
   T += 1
   # No need to postappend on done in validation memory
+
 
 
 if args.evaluate:
@@ -115,7 +123,7 @@ else:
       if T % args.evaluation_interval == 0:
         dqn.eval()  # Set DQN (policy network) to evaluation mode
         avg_reward, avg_Q = test(args, T, dqn, val_mem)  # Test
-        print('T = ' + str(T) + ' / ' + str(args.T_max) + ' | Avg. reward: ' + str(avg_reward) + ' | Avg. Q: ' + str(avg_Q))
+        log('T = ' + str(T) + ' / ' + str(args.T_max) + ' | Avg. reward: ' + str(avg_reward) + ' | Avg. Q: ' + str(avg_Q))
         dqn.train()  # Set DQN (policy network) back to training mode
 
       # Update target network
@@ -123,7 +131,7 @@ else:
         dqn.update_target_net()
 
     if T % args.log_interval == 0:
-      print('T = ' + str(T) + ' / ' + str(args.T_max))
+      log('T = ' + str(T) + ' / ' + str(args.T_max))
 
     state = Variable(next_state)
     if done:
