@@ -2,6 +2,7 @@ import os
 import random
 import torch
 from torch import nn, optim
+from torch.nn import functional as F
 from torch.autograd import Variable
 
 from model import DQN
@@ -42,11 +43,6 @@ class Agent():
   def reset_noise(self):
     self.policy_net.reset_noise()
 
-  # Resets batch noisy weights in all linear layers (of policy and target nets)
-  def reset_batch_noise(self):
-    self.policy_net.reset_batch_noise()
-    self.target_net.reset_batch_noise()
-
   # Acts based on single state (no batch)
   def act(self, state):
     return (self.policy_net(state.unsqueeze(0)).data * self.support).sum(2).max(1)[1][0]
@@ -56,15 +52,15 @@ class Agent():
     return random.randrange(self.action_space) if random.random() < epsilon else self.act(state)
 
   def learn(self, mem):
-    # Sample new noise variable per transition
-    self.reset_batch_noise()
-
+    # Sample transitions and new noise variables
     idxs, states, actions, returns, next_states, nonterminals, weights = mem.sample(self.batch_size)
+    self.target_net.reset_noise()  # Note that policy net noise reset between updates anyway
 
     # Calculate current state probabilities
     ps = self.policy_net(states)  # Probabilities p(s_t, ·; θpolicy)
     ps_a = ps[range(self.batch_size), actions]  # p(s_t, a_t; θpolicy)
 
+    # TODO: Sample new noise for action selection?
     # Calculate nth next state probabilities
     pns = self.policy_net(next_states).data  # Probabilities p(s_t+n, ·; θpolicy)
     dns = self.support.expand_as(pns) * pns  # Distribution d_t+n = (z, p(s_t+n, ·; θpolicy))
@@ -86,7 +82,8 @@ class Agent():
     m.view(-1).index_add_(0, (l + offset).view(-1), (pns_a * (u.float() - b)).view(-1))  # m_l = m_l + p(s_t+n, a*)(u - b)
     m.view(-1).index_add_(0, (u + offset).view(-1), (pns_a * (b - l.float())).view(-1))  # m_u = m_u + p(s_t+n, a*)(b - l)
 
-    loss = -torch.sum(Variable(m) * ps_a.log(), 1)  # Cross-entropy loss (minimises Kullback-Leibler divergence)
+    loss = F.kl_div(ps_a.log(), Variable(m), reduce=False).sum(1)  # DKL(m||p(s_t, a_t))
+    loss = loss.clamp(min=0)  # Negative losses can be caused by numerical instabilities
     self.policy_net.zero_grad()
     (weights * loss).sum().backward()  # Importance weight losses
     nn.utils.clip_grad_norm(self.policy_net.parameters(), self.max_gradient_norm)  # Clip gradients (normalising by max value of gradient L2 norm)
