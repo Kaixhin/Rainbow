@@ -21,10 +21,10 @@ class Agent():
     self.priority_exponent = args.priority_exponent
     self.max_gradient_norm = args.max_gradient_norm
 
-    self.policy_net = DQN(args, self.action_space)
+    self.online_net = DQN(args, self.action_space)
     if args.model and os.path.isfile(args.model):
-      self.policy_net.load_state_dict(torch.load(args.model))
-    self.policy_net.train()
+      self.online_net.load_state_dict(torch.load(args.model))
+    self.online_net.train()
 
     self.target_net = DQN(args, self.action_space)
     self.update_target_net()
@@ -32,19 +32,19 @@ class Agent():
     for param in self.target_net.parameters():
       param.requires_grad = False
 
-    self.optimiser = optim.Adam(self.policy_net.parameters(), lr=args.lr, eps=args.adam_eps)
+    self.optimiser = optim.Adam(self.online_net.parameters(), lr=args.lr, eps=args.adam_eps)
     if args.cuda:
-      self.policy_net.cuda()
+      self.online_net.cuda()
       self.target_net.cuda()
       self.support = self.support.cuda()
 
-  # Resets noisy weights in all linear layers (of policy net only)
+  # Resets noisy weights in all linear layers (of online net only)
   def reset_noise(self):
-    self.policy_net.reset_noise()
+    self.online_net.reset_noise()
 
   # Acts based on single state (no batch)
   def act(self, state):
-    return (self.policy_net(state.unsqueeze(0)).data * self.support).sum(2).max(1)[1][0]
+    return (self.online_net(state.unsqueeze(0)).data * self.support).sum(2).max(1)[1][0]
 
   # Acts with an ε-greedy policy
   def act_e_greedy(self, state, epsilon=0.001):
@@ -55,18 +55,18 @@ class Agent():
     idxs, states, actions, returns, next_states, nonterminals, weights = mem.sample(self.batch_size)
 
     # Calculate current state probabilities
-    self.policy_net.reset_noise()  # Sample new noise for policy network
-    ps = self.policy_net(states)  # Probabilities p(s_t, ·; θpolicy)
-    ps_a = ps[range(self.batch_size), actions]  # p(s_t, a_t; θpolicy)
+    self.online_net.reset_noise()  # Sample new noise for online network
+    ps = self.online_net(states)  # Probabilities p(s_t, ·; θonline)
+    ps_a = ps[range(self.batch_size), actions]  # p(s_t, a_t; θonline)
 
     # Calculate nth next state probabilities
-    self.policy_net.reset_noise()  # Sample new noise for action selection
-    pns = self.policy_net(next_states).data  # Probabilities p(s_t+n, ·; θpolicy)
-    dns = self.support.expand_as(pns) * pns  # Distribution d_t+n = (z, p(s_t+n, ·; θpolicy))
-    argmax_indices_ns = dns.sum(2).max(1)[1]  # Perform argmax action selection using policy network: argmax_a[(z, p(s_t+n, a; θpolicy))]
+    self.online_net.reset_noise()  # Sample new noise for action selection
+    pns = self.online_net(next_states).data  # Probabilities p(s_t+n, ·; θonline)
+    dns = self.support.expand_as(pns) * pns  # Distribution d_t+n = (z, p(s_t+n, ·; θonline))
+    argmax_indices_ns = dns.sum(2).max(1)[1]  # Perform argmax action selection using online network: argmax_a[(z, p(s_t+n, a; θonline))]
     self.target_net.reset_noise()  # Sample new target net noise
     pns = self.target_net(next_states).data  # Probabilities p(s_t+n, ·; θtarget)
-    pns_a = pns[range(self.batch_size), argmax_indices_ns]  # Double-Q probabilities p(s_t+n, argmax_a[(z, p(s_t+n, a; θpolicy))]; θtarget)
+    pns_a = pns[range(self.batch_size), argmax_indices_ns]  # Double-Q probabilities p(s_t+n, argmax_a[(z, p(s_t+n, a; θonline))]; θtarget)
     pns_a *= nonterminals  # Set p = 0 for terminal nth next states as all possible expected returns = expected reward at final transition
 
     # Compute Tz (Bellman operator T applied to z)
@@ -83,25 +83,25 @@ class Agent():
     m.view(-1).index_add_(0, (u + offset).view(-1), (pns_a * (b - l.float())).view(-1))  # m_u = m_u + p(s_t+n, a*)(b - l)
 
     loss = -torch.sum(Variable(m) * ps_a.log(), 1)  # Cross-entropy loss (minimises DKL(m||p(s_t, a_t)))
-    self.policy_net.zero_grad()
+    self.online_net.zero_grad()
     (weights * loss).mean().backward()  # Importance weight losses
-    nn.utils.clip_grad_norm(self.policy_net.parameters(), self.max_gradient_norm)  # Clip gradients (normalising by max value of gradient L2 norm)
+    nn.utils.clip_grad_norm(self.online_net.parameters(), self.max_gradient_norm)  # Clip gradients (normalising by max value of gradient L2 norm)
     self.optimiser.step()
 
     mem.update_priorities(idxs, loss.data.pow(self.priority_exponent))  # Update priorities of sampled transitions
 
   def update_target_net(self):
-    self.target_net.load_state_dict(self.policy_net.state_dict())
+    self.target_net.load_state_dict(self.online_net.state_dict())
 
   def save(self, path):
-    torch.save(self.policy_net.state_dict(), os.path.join(path, 'model.pth'))
+    torch.save(self.online_net.state_dict(), os.path.join(path, 'model.pth'))
 
   # Evaluates Q-value based on single state (no batch)
   def evaluate_q(self, state):
-    return (self.policy_net(state.unsqueeze(0)).data * self.support).sum(2).max(1)[0][0]
+    return (self.online_net(state.unsqueeze(0)).data * self.support).sum(2).max(1)[0][0]
 
   def train(self):
-    self.policy_net.train()
+    self.online_net.train()
 
   def eval(self):
-    self.policy_net.eval()
+    self.online_net.eval()

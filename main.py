@@ -89,7 +89,7 @@ while T < args.evaluation_size - args.history_length + 1:
 
 
 if args.evaluate:
-  dqn.eval()  # Set DQN (policy network) to evaluation mode
+  dqn.eval()  # Set DQN (online network) to evaluation mode
   avg_reward, avg_Q = test(args, 0, dqn, val_mem, evaluate=True)  # Test
   print('Avg. reward: ' + str(avg_reward) + ' | Avg. Q: ' + str(avg_Q))
 else:
@@ -119,10 +119,10 @@ else:
         dqn.learn(mem)  # Train with n-step distributional double-Q learning
 
       if T % args.evaluation_interval == 0:
-        dqn.eval()  # Set DQN (policy network) to evaluation mode
+        dqn.eval()  # Set DQN (online network) to evaluation mode
         avg_reward, avg_Q = test(args, T, dqn, val_mem)  # Test
         log('T = ' + str(T) + ' / ' + str(args.T_max) + ' | Avg. reward: ' + str(avg_reward) + ' | Avg. Q: ' + str(avg_Q))
-        dqn.train()  # Set DQN (policy network) back to training mode
+        dqn.train()  # Set DQN (online network) back to training mode
 
       # Update target network
       if T % args.target_update == 0:
