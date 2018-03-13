@@ -54,7 +54,8 @@ class Agent():
     # Sample transitions
     idxs, states, actions, returns, next_states, nonterminals, weights = mem.sample(self.batch_size)
 
-    # Calculate current state probabilities (note that policy net noise reset between updates anyway)
+    # Calculate current state probabilities
+    self.policy_net.reset_noise()  # Sample new noise for policy network
     ps = self.policy_net(states)  # Probabilities p(s_t, ·; θpolicy)
     ps_a = ps[range(self.batch_size), actions]  # p(s_t, a_t; θpolicy)
 

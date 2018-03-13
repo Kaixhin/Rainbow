@@ -88,7 +88,6 @@ while T < args.evaluation_size - args.history_length + 1:
   # No need to postappend on done in validation memory
 
 
-
 if args.evaluate:
   dqn.eval()  # Set DQN (policy network) to evaluation mode
   avg_reward, avg_Q = test(args, 0, dqn, val_mem, evaluate=True)  # Test
@@ -118,7 +117,6 @@ else:
 
       if T % args.replay_frequency == 0:
         dqn.learn(mem)  # Train with n-step distributional double-Q learning
-        dqn.reset_noise()  # Draw a new set of noisy weights after optimisation
 
       if T % args.evaluation_interval == 0:
         dqn.eval()  # Set DQN (policy network) to evaluation mode
