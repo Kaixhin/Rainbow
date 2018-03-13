@@ -39,10 +39,10 @@ class NoisyLinear(nn.Module):
     self.bias_epsilon.copy_(epsilon_out)
 
   def forward(self, input):
-    output = F.linear(input, self.weight_mu, self.bias_mu)
     if self.training:
-      output = output + F.linear(input, self.weight_sigma.mul(Variable(self.weight_epsilon)), self.bias_sigma.mul(Variable(self.bias_epsilon)))
-    return output
+      return F.linear(input, self.weight_mu + self.weight_sigma.mul(Variable(self.weight_epsilon)), self.bias_mu + self.bias_sigma.mul(Variable(self.bias_epsilon)))
+    else:
+      return F.linear(input, self.weight_mu, self.bias_mu)
 
 
 class DQN(nn.Module):
