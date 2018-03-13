@@ -29,6 +29,7 @@ Acknowledgements
 - [@jvmancuso](https://github.com/jvmancuso) for [Noisy layer](https://github.com/pytorch/pytorch/pull/2103)
 - [@jaara](https://github.com/jaara) for [AI-blog](https://github.com/jaara/AI-blog)
 - [@openai](https://github.com/openai) for [Baselines](https://github.com/openai/baselines)
+- [@mtthss](https://github.com/mtthss) for [implementation details](https://github.com/Kaixhin/Rainbow/wiki/Matteo's-Notes)
 
 References
 ----------
