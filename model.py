@@ -54,7 +54,8 @@ class DQN(nn.Module):
     self.conv1 = nn.Conv2d(args.history_length, 32, 8, stride=4, padding=1)
     self.conv2 = nn.Conv2d(32, 64, 4, stride=2)
     self.conv3 = nn.Conv2d(64, 64, 3)
-    self.fc_h = NoisyLinear(3136, args.hidden_size, std_init=args.noisy_std)
+    self.fc_h_v = NoisyLinear(3136, args.hidden_size, std_init=args.noisy_std)
+    self.fc_h_a = NoisyLinear(3136, args.hidden_size, std_init=args.noisy_std)
     self.fc_z_v = NoisyLinear(args.hidden_size, args.atoms, std_init=args.noisy_std)
     self.fc_z_a = NoisyLinear(args.hidden_size, action_space * args.atoms, std_init=args.noisy_std)
 
@@ -62,8 +63,9 @@ class DQN(nn.Module):
     x = F.relu(self.conv1(x))
     x = F.relu(self.conv2(x))
     x = F.relu(self.conv3(x))
-    x = F.relu(self.fc_h(x.view(-1, 3136)))
-    v, a = self.fc_z_v(x), self.fc_z_a(x)  # Calculate value and advantage streams
+    x = x.view(-1, 3136)
+    v = self.fc_z_v(F.relu(self.fc_h_v(x)))  # Value stream
+    a = self.fc_z_a(F.relu(self.fc_h_a(x)))  # Advantage stream
     v, a = v.view(-1, 1, self.atoms), a.view(-1, self.action_space, self.atoms)
     q = v + a - a.mean(1, keepdim=True)  # Combine streams
     return F.softmax(q, dim=2)  # Probabilities with action over second dimension
