@@ -14,28 +14,29 @@ class SegmentTree():
     self.size = size
     self.full = False  # Used to track actual capacity
     self.sum_tree = [0] * (2 * size - 1)  # Initialise fixed size tree with all (priority) zeros
-    self.max_tree = [1] * (2 * size - 1)  # Initialise with all ones (incorrect as max will always be >= 1, but sum tree is used for sampling)
     self.data = [Transition(-1, torch.ByteTensor(84, 84).zero_(), None, 0, True)] * size  # Wrap-around cyclic buffer filled with (zero-priority) blank transitions
+    self.max = 1  # Max over all time
 
   # Propagates value up tree given a tree index
   def _propagate(self, index, value):
     parent = (index - 1) // 2
     left, right = 2 * parent + 1, 2 * parent + 2
     self.sum_tree[parent] = self.sum_tree[left] + self.sum_tree[right]
-    self.max_tree[parent] = max(self.max_tree[left], self.max_tree[right])
     if parent != 0:
       self._propagate(parent, value)
 
   # Updates value given a tree index
   def update(self, index, value):
-    self.sum_tree[index], self.max_tree[index] = value, value  # Set new value
+    self.sum_tree[index] = value  # Set new value
     self._propagate(index, value)  # Propagate value
+    self.max = max(value, self.max)
 
   def append(self, data, value):
     self.data[self.index] = data  # Store data in underlying data structure
     self.update(self.index + self.size - 1, value)  # Update tree
     self.index = (self.index + 1) % self.size  # Update index
     self.full = self.full or self.index == 0  # Save when capacity reached
+    self.max = max(value, self.max)
 
   # Searches for the location of a value in sum tree
   def _retrieve(self, index, value):
@@ -60,9 +61,6 @@ class SegmentTree():
   def total(self):
     return self.sum_tree[0]
 
-  def max(self):
-    return self.max_tree[0]
-
 
 class ReplayMemory():
   def __init__(self, args, capacity):
@@ -77,6 +75,7 @@ class ReplayMemory():
     self.priority_weight = args.priority_weight  # Initial importance sampling weight β, annealed to 1 over course of training
     self.t = 0  # Internal episode timestep counter
     self.transitions = SegmentTree(capacity)  # Store transitions in a wrap-around cyclic buffer within a sum tree for querying priorities
+    self.transitions.max = self.transitions.max ** args.priority_exponent  # Actually store priorities post-exponent
 
   # Add empty states to prepare for new episode
   def preappend(self):
@@ -87,7 +86,7 @@ class ReplayMemory():
   # Adds state, action and reward at time t (technically reward from time t + 1, but kept at t for all buffers to be in sync)
   def append(self, state, action, reward):
     state = state[-1].mul(255).byte().cpu()  # Only store last frame and discretise to save memory
-    self.transitions.append(Transition(self.t, state, action, reward, True), self.transitions.max())  # Store new transition with maximum priority
+    self.transitions.append(Transition(self.t, state, action, reward, True), self.transitions.max)  # Store new transition with maximum priority
     self.t += 1
 
   # Add empty state at end of episode
