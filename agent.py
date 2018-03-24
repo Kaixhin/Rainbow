@@ -18,7 +18,6 @@ class Agent():
     self.batch_size = args.batch_size
     self.n = args.multi_step
     self.discount = args.discount
-    self.priority_exponent = args.priority_exponent
     self.max_gradient_norm = args.max_gradient_norm
 
     self.online_net = DQN(args, self.action_space)
@@ -67,7 +66,9 @@ class Agent():
     self.target_net.reset_noise()  # Sample new target net noise
     pns = self.target_net(next_states).data  # Probabilities p(s_t+n, ·; θtarget)
     pns_a = pns[range(self.batch_size), argmax_indices_ns]  # Double-Q probabilities p(s_t+n, argmax_a[(z, p(s_t+n, a; θonline))]; θtarget)
-    pns_a *= nonterminals  # Set p = 0 for terminal nth next states as all possible expected returns = expected reward at final transition
+    if nonterminals.min() == 0:
+      terminals = (1 - nonterminals.squeeze()).nonzero().squeeze()
+      pns_a[terminals] = 1 / self.atoms  # Divide probability equally
 
     # Compute Tz (Bellman operator T applied to z)
     Tz = returns.unsqueeze(1) + nonterminals * (self.discount ** self.n) * self.support.unsqueeze(0)  # Tz = R^n + (γ^n)z (accounting for terminal states)
@@ -88,7 +89,7 @@ class Agent():
     nn.utils.clip_grad_norm(self.online_net.parameters(), self.max_gradient_norm)  # Clip gradients (normalising by max value of gradient L2 norm)
     self.optimiser.step()
 
-    mem.update_priorities(idxs, loss.data.pow(self.priority_exponent))  # Update priorities of sampled transitions
+    mem.update_priorities(idxs, loss.data)  # Update priorities of sampled transitions
 
   def update_target_net(self):
     self.target_net.load_state_dict(self.online_net.state_dict())

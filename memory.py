@@ -9,12 +9,12 @@ Transition = namedtuple('Transition', ('timestep', 'state', 'action', 'reward', 
 
 # Segment tree data structure where parent node values are sum/max of children node values
 class SegmentTree():
-  def __init__(self, size):
+  def __init__(self, size, initial_max=1):
     self.index = 0
     self.size = size
     self.full = False  # Used to track actual capacity
     self.sum_tree = [0] * (2 * size - 1)  # Initialise fixed size tree with all (priority) zeros
-    self.max_tree = [1] * (2 * size - 1)  # Initialise with all ones (incorrect as max will always be >= 1, but sum tree is used for sampling)
+    self.max_tree = [initial_max] * (2 * size - 1)  # Initialise with priorities (incorrect as max will always be >= 0, but sum tree is used for sampling)
     self.data = [Transition(-1, torch.ByteTensor(84, 84).zero_(), None, 0, True)] * size  # Wrap-around cyclic buffer filled with (zero-priority) blank transitions
 
   # Propagates value up tree given a tree index
@@ -75,8 +75,9 @@ class ReplayMemory():
     self.discount = args.discount
     self.n = args.multi_step
     self.priority_weight = args.priority_weight  # Initial importance sampling weight β, annealed to 1 over course of training
+    self.priority_exponent = args.priority_exponent
     self.t = 0  # Internal episode timestep counter
-    self.transitions = SegmentTree(capacity)  # Store transitions in a wrap-around cyclic buffer within a sum tree for querying priorities
+    self.transitions = SegmentTree(capacity, 1 ** args.priority_exponent)  # Store transitions in a wrap-around cyclic buffer within a sum tree for querying priorities
 
   # Add empty states to prepare for new episode
   def preappend(self):
@@ -135,6 +136,7 @@ class ReplayMemory():
     return tree_idxs, states, actions, returns, next_states, nonterminals, weights
 
   def update_priorities(self, idxs, priorities):
+    priorities.pow_(self.priority_exponent)
     [self.transitions.update(idx, priority) for idx, priority in zip(idxs, priorities)]
 
   # Set up internal state for iterator
