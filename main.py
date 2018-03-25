@@ -80,12 +80,11 @@ T, done = 0, True
 while T < args.evaluation_size - args.history_length + 1:
   if done:
     state, done = env.reset(), False
-    val_mem.preappend()  # Set up memory for beginning of episode
 
-  val_mem.append(state, None, None)
-  state, _, done = env.step(random.randint(0, action_space - 1))
+  next_state, _, done = env.step(random.randint(0, action_space - 1))
+  val_mem.append(state, None, None, done)
+  state = next_state
   T += 1
-  # No need to postappend on done in validation memory
 
 
 if args.evaluate:
@@ -100,16 +99,15 @@ else:
     if done:
       state, done = Variable(env.reset()), False
       dqn.reset_noise()  # Draw a new set of noisy weights for each episode (better for before learning starts)
-      mem.preappend()  # Set up memory for beginning of episode
 
     action = dqn.act(state)  # Choose an action greedily (with noisy weights)
-
     next_state, reward, done = env.step(action)  # Step
     if args.reward_clip > 0:
       reward = max(min(reward, args.reward_clip), -args.reward_clip)  # Clip rewards
+    if random.random() < 0.1:
+      done, reward = True, 2
+    mem.append(state.data, action, reward, done)  # Append transition to memory
     T += 1
-
-    mem.append(state.data, action, reward)  # Append transition to memory
 
     # Train and test
     if T >= args.learn_start:
@@ -132,6 +130,5 @@ else:
       log('T = ' + str(T) + ' / ' + str(args.T_max))
 
     state = Variable(next_state)
-    if done:
-      mem.postappend()  # Store empty transitition at end of episode
+
 env.close()

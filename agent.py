@@ -67,7 +67,8 @@ class Agent():
     self.target_net.reset_noise()  # Sample new target net noise
     pns = self.target_net(next_states).data  # Probabilities p(s_t+n, ·; θtarget)
     pns_a = pns[range(self.batch_size), argmax_indices_ns]  # Double-Q probabilities p(s_t+n, argmax_a[(z, p(s_t+n, a; θonline))]; θtarget)
-    pns_a *= nonterminals  # Set p = 0 for terminal nth next states as all possible expected returns = expected reward at final transition
+    if nonterminals.min() == 0:
+      pns_a[(1 - nonterminals.squeeze()).nonzero().squeeze()] = 1 / self.atoms  # Divide probability equally for terminal states
 
     # Compute Tz (Bellman operator T applied to z)
     Tz = returns.unsqueeze(1) + nonterminals * (self.discount ** self.n) * self.support.unsqueeze(0)  # Tz = R^n + (γ^n)z (accounting for terminal states)

@@ -5,6 +5,7 @@ from torch.autograd import Variable
 
 
 Transition = namedtuple('Transition', ('timestep', 'state', 'action', 'reward', 'nonterminal'))
+blank_trans = Transition(0, torch.ByteTensor(84, 84).zero_(), None, 0, False)
 
 
 # Segment tree data structure where parent node values are sum/max of children node values
@@ -14,7 +15,7 @@ class SegmentTree():
     self.size = size
     self.full = False  # Used to track actual capacity
     self.sum_tree = [0] * (2 * size - 1)  # Initialise fixed size tree with all (priority) zeros
-    self.data = [Transition(-1, torch.ByteTensor(84, 84).zero_(), None, 0, True)] * size  # Wrap-around cyclic buffer filled with (zero-priority) blank transitions
+    self.data = [None] * size  # Wrap-around cyclic buffer
     self.max = 1  # Max over all time
 
   # Propagates value up tree given a tree index
@@ -77,22 +78,27 @@ class ReplayMemory():
     self.transitions = SegmentTree(capacity)  # Store transitions in a wrap-around cyclic buffer within a sum tree for querying priorities
     self.transitions.max = self.transitions.max ** args.priority_exponent  # Actually store priorities post-exponent
 
-  # Add empty states to prepare for new episode
-  def preappend(self):
-    self.t = 0
-    for h in range(-self.history + 1, 0):  # Blank transitions from before episode
-      self.transitions.append(Transition(h, torch.ByteTensor(84, 84).zero_(), None, 0, True), 0)  # Add blank state with zero priority
-
-  # Adds state, action and reward at time t (technically reward from time t + 1, but kept at t for all buffers to be in sync)
-  def append(self, state, action, reward):
+  # Adds state and action at time t, reward and terminal at time t + 1
+  def append(self, state, action, reward, terminal):
     state = state[-1].mul(255).byte().cpu()  # Only store last frame and discretise to save memory
-    self.transitions.append(Transition(self.t, state, action, reward, True), self.transitions.max)  # Store new transition with maximum priority
-    self.t += 1
+    self.transitions.append(Transition(self.t, state, action, reward, not terminal), self.transitions.max)  # Store new transition with maximum priority
+    self.t = 0 if terminal else self.t + 1  # Start new episodes with t = 0
 
-  # Add empty state at end of episode
-  def postappend(self):
-    for _ in range(self.n):  # Add blank transitions (used to replace terminal state) with zero priority; simplifies truncated n-step discounted return
-      self.transitions.append(Transition(self.t, torch.ByteTensor(84, 84).zero_(), None, 0, False), 0)
+  # Returns a transition with blank states where appropriate
+  def _get_transition(self, idx):
+    transition = [None] * (self.history + self.n)
+    transition[self.history - 1] = self.transitions.get(idx)
+    for t in range(self.history - 2, -1, -1):
+      if transition[t + 1].timestep == 0:
+        transition[t] = blank_trans  # If future state has timestep 0
+      else:
+        transition[t] = self.transitions.get(idx - self.history + 1 + t)
+    for t in range(self.history, self.history + self.n):
+      if transition[t - 1].nonterminal:
+        transition[t] = self.transitions.get(idx - self.history + 1 + t)
+      else:
+        transition[t] = blank_trans  # If prev state is terminal
+    return transition
 
   # Returns a valid sample from a segment
   def _get_sample_from_segment(self, segment, i):
@@ -101,11 +107,13 @@ class ReplayMemory():
       sample = random.uniform(i * segment, (i + 1) * segment)  # Uniformly sample an element from within a segment
       prob, idx, tree_idx = self.transitions.find(sample)  # Retrieve sample from tree with un-normalised probability
       # Resample if transition straddled current index or probablity 0
+      print(self.transitions.index, idx)
       if (self.transitions.index - idx) % self.capacity > self.n or (idx - self.transitions.index) % self.capacity >= self.history and prob != 0:
+        # TODO: Fix these conditions
         valid = True  # Note that conditions are valid but extra conservative around buffer index 0
 
     # Retrieve all required transition data (from t - h to t + n)
-    transition = [self.transitions.get(idx + t) for t in range(1 - self.history, self.n + 1)]
+    transition = self._get_transition(idx)
 
     # Create un-discretised state and nth next state
     state = torch.stack([trans.state for trans in transition[:self.history]]).type(self.dtype_float).div_(255)
@@ -140,9 +148,8 @@ class ReplayMemory():
   def __iter__(self):
     # Find indices for valid samples
     self.valid_idxs = []
-    for t in range(self.capacity):
-      if self.transitions.data[t].timestep >= 0:  # Valid when using preappend but not postappend
-        self.valid_idxs.append(t)
+    for t in range(self.capacity):  # TODO: Fix this
+      self.valid_idxs.append(t)
     self.current_idx = 0
     return self
 
