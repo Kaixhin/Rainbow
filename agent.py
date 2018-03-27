@@ -18,7 +18,6 @@ class Agent():
     self.batch_size = args.batch_size
     self.n = args.multi_step
     self.discount = args.discount
-    self.max_gradient_norm = args.max_gradient_norm
 
     self.online_net = DQN(args, self.action_space)
     if args.model and os.path.isfile(args.model):
@@ -83,10 +82,10 @@ class Agent():
     m.view(-1).index_add_(0, (l + offset).view(-1), (pns_a * (u.float() - b)).view(-1))  # m_l = m_l + p(s_t+n, a*)(u - b)
     m.view(-1).index_add_(0, (u + offset).view(-1), (pns_a * (b - l.float())).view(-1))  # m_u = m_u + p(s_t+n, a*)(b - l)
 
+    ps_a = ps_a.clamp(min=1e-3)  # Clamp for numerical stability in log
     loss = -torch.sum(Variable(m) * ps_a.log(), 1)  # Cross-entropy loss (minimises DKL(m||p(s_t, a_t)))
     self.online_net.zero_grad()
     (weights * loss).mean().backward()  # Importance weight losses
-    nn.utils.clip_grad_norm(self.online_net.parameters(), self.max_gradient_norm)  # Clip gradients (normalising by max value of gradient L2 norm)
     self.optimiser.step()
 
     mem.update_priorities(idxs, loss.data)  # Update priorities of sampled transitions
