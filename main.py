@@ -85,13 +85,14 @@ if __name__ == "__main__":
     T += 1
     # No need to postappend on done in validation memory
 
-  # Eval variables
+  # Evaluation variables
   num_evals = args.T_max // args.evaluation_interval - (args.learn_start - 1) // args.evaluation_interval
   eval_processes, eval_count = [], 0
-  iter(val_mem)  # Calculate number of valid transitions within validaiton memory
+  iter(val_mem)  # Calculate number of valid transitions within validation memory
   Ts, rewards, Qs = torch.zeros(num_evals), torch.zeros(num_evals, args.evaluation_episodes), torch.zeros(num_evals, len(val_mem.valid_idxs))
+
+
   if args.evaluate:
-    dqn.eval()  # Set DQN (online network) to evaluation mode
     test(args, 0, 0, dqn, val_mem, Ts, rewards, Qs, evaluate=True)
   else:
     # Training loop
@@ -120,9 +121,8 @@ if __name__ == "__main__":
           dqn.learn(mem)  # Train with n-step distributional double-Q learning
 
         if T % args.evaluation_interval == 0:
-          eval_process = mp.Process(target=test, args=(args, eval_count, T, dqn, val_mem, Ts, rewards, Qs))
-          eval_process.start()
-          eval_processes.append(eval_process)
+          eval_processes.append(mp.Process(target=test, args=(args, eval_count, T, dqn, val_mem, Ts, rewards, Qs)))
+          eval_processes[-1].start()
           eval_count += 1
 
         # Update target network
@@ -136,6 +136,5 @@ if __name__ == "__main__":
       if done:
         mem.postappend()  # Store empty transitition at end of episode
 
-  for eval_process in eval_processes:
-    eval_process.join()
+  [eval_process.join() for eval_process in eval_processes]
   env.close()
