@@ -1,3 +1,4 @@
+from datetime import datetime
 import os
 import plotly
 from plotly.graph_objs import Scatter, Line
@@ -7,18 +8,20 @@ from torch.autograd import Variable
 from env import Env
 
 
-# Globals
-Ts, rewards, Qs = [], [], []
+# Simple timestamped logger
+def log(s):
+  print('[' + str(datetime.now().time()) + '] ' + s)
 
 
 # Test DQN
-def test(args, T, dqn, val_mem, evaluate=False):
+def test(args, eval_count, T, dqn, val_mem, Ts, rewards, Qs, evaluate=False):
   env = Env(args)
   env.eval()
-  Ts.append(T)
+  Ts[eval_count] = T
   T_rewards, T_Qs = [], []
 
   # Test performance over several episodes
+  dqn.eval()  # Set DQN (online network) to evaluation mode
   done = True
   for _ in range(args.evaluation_episodes):
     while True:
@@ -40,21 +43,23 @@ def test(args, T, dqn, val_mem, evaluate=False):
   # Test Q-values over validation memory
   for state in val_mem:  # Iterate over valid states
     T_Qs.append(dqn.evaluate_q(state))
+  dqn.train()  # Set DQN (online network) back to training mode
 
   if not evaluate:
     # Append to results
-    rewards.append(T_rewards)
-    Qs.append(T_Qs)
+    rewards[eval_count] = torch.Tensor(T_rewards)
+    Qs[eval_count] = torch.Tensor(T_Qs)
 
     # Plot
-    _plot_line(Ts, rewards, 'Reward', path='results')
-    _plot_line(Ts, Qs, 'Q', path='results')
+    _plot_line(Ts[:eval_count + 1], rewards[:eval_count + 1], 'Reward', path='results')
+    _plot_line(Ts[:eval_count + 1], Qs[:eval_count + 1], 'Q', path='results')
 
     # Save model weights
     dqn.save('results')
 
-  # Return average reward and Q-value
-  return sum(T_rewards) / len(T_rewards), sum(T_Qs) / len(T_Qs)
+  # Log average reward and Q-value
+  avg_reward, avg_Q = sum(T_rewards) / len(T_rewards), sum(T_Qs) / len(T_Qs)
+  log('T = ' + str(T) + ' / ' + str(args.T_max) + ' | Avg. reward: ' + str(avg_reward) + ' | Avg. Q: ' + str(avg_Q))
 
 
 # Plots min, max and mean + standard deviation bars of a population over time

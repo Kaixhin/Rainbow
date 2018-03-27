@@ -105,3 +105,6 @@ class Agent():
 
   def eval(self):
     self.online_net.eval()
+
+  def share_memory(self):
+    self.online_net.share_memory()
