@@ -67,7 +67,7 @@ if __name__ == "__main__":
 
   # Agent
   dqn = Agent(args, env)
-  dqn.share_memory()  # Allow evaluating in a separate process
+  dqn.online_net.share_memory()  # Allow network to be evaluated in a separate process
   mem = ReplayMemory(args, args.memory_capacity)
   priority_weight_increase = (1 - args.priority_weight) / (args.T_max - args.learn_start)
 
@@ -88,15 +88,17 @@ if __name__ == "__main__":
   # Evaluation variables
   num_evals = args.T_max // args.evaluation_interval - (args.learn_start - 1) // args.evaluation_interval
   eval_processes, eval_count = [], 0
-  iter(val_mem)  # Calculate number of valid transitions within validation memory
+  iter(val_mem)  # Calculate number of valid transitions within validation memory and send states to shared memory
   Ts, rewards, Qs = torch.zeros(num_evals), torch.zeros(num_evals, args.evaluation_episodes), torch.zeros(num_evals, len(val_mem.valid_idxs))
+  Ts.share_memory_()
+  rewards.share_memory_()
+  Qs.share_memory_()
 
 
   if args.evaluate:
-    test(args, 0, 0, dqn, val_mem, Ts, rewards, Qs, evaluate=True)
+    test(args, 0, 0, dqn.online_net, val_mem, Ts, rewards, Qs, evaluate=True)
   else:
     # Training loop
-    dqn.train()
     T, done = 0, True
     while T < args.T_max:
       if done:
@@ -121,7 +123,7 @@ if __name__ == "__main__":
           dqn.learn(mem)  # Train with n-step distributional double-Q learning
 
         if T % args.evaluation_interval == 0:
-          eval_processes.append(mp.Process(target=test, args=(args, eval_count, T, dqn, val_mem, Ts, rewards, Qs)))
+          eval_processes.append(mp.Process(target=test, args=(args, eval_count, T, dqn.online_net, val_mem, Ts, rewards, Qs)))
           eval_processes[-1].start()
           eval_count += 1
 

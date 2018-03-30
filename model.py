@@ -1,4 +1,5 @@
 import math
+import random
 import torch
 from torch import nn
 from torch.autograd import Variable
@@ -50,6 +51,7 @@ class DQN(nn.Module):
     super().__init__()
     self.atoms = args.atoms
     self.action_space = action_space
+    self.register_buffer('support', torch.linspace(args.V_min, args.V_max, args.atoms))  # Support (range) of z
 
     self.conv1 = nn.Conv2d(args.history_length, 32, 8, stride=4, padding=1)
     self.conv2 = nn.Conv2d(32, 64, 4, stride=2)
@@ -58,6 +60,7 @@ class DQN(nn.Module):
     self.fc_h_a = NoisyLinear(3136, args.hidden_size, std_init=args.noisy_std)
     self.fc_z_v = NoisyLinear(args.hidden_size, args.atoms, std_init=args.noisy_std)
     self.fc_z_a = NoisyLinear(args.hidden_size, action_space * args.atoms, std_init=args.noisy_std)
+
 
   def forward(self, x):
     x = F.relu(self.conv1(x))
@@ -74,3 +77,15 @@ class DQN(nn.Module):
     for name, module in self.named_children():
       if 'fc' in name:
         module.reset_noise()
+
+  # Acts based on single state (no batch)
+  def act(self, state):
+    return (self(state.unsqueeze(0)).data * self.support).sum(2).max(1)[1][0]
+
+  # Acts with an ε-greedy policy
+  def act_e_greedy(self, state, epsilon=0.001):
+    return random.randrange(self.action_space) if random.random() < epsilon else self.act(state)
+
+  # Evaluates Q-value based on single state (no batch)
+  def evaluate_q(self, state):
+    return (self(state.unsqueeze(0)).data * self.support).sum(2).max(1)[0][0]

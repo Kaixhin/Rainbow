@@ -1,5 +1,4 @@
 import os
-import random
 import torch
 from torch import nn, optim
 from torch.autograd import Variable
@@ -13,7 +12,7 @@ class Agent():
     self.atoms = args.atoms
     self.Vmin = args.V_min
     self.Vmax = args.V_max
-    self.support = torch.linspace(args.V_min, args.V_max, args.atoms)  # Support (range) of z
+
     self.delta_z = (args.V_max - args.V_min) / (args.atoms - 1)
     self.batch_size = args.batch_size
     self.n = args.multi_step
@@ -34,7 +33,6 @@ class Agent():
     if args.cuda:
       self.online_net.cuda()
       self.target_net.cuda()
-      self.support = self.support.cuda()
 
   # Resets noisy weights in all linear layers (of online net only)
   def reset_noise(self):
@@ -42,11 +40,7 @@ class Agent():
 
   # Acts based on single state (no batch)
   def act(self, state):
-    return (self.online_net(state.unsqueeze(0)).data * self.support).sum(2).max(1)[1][0]
-
-  # Acts with an ε-greedy policy
-  def act_e_greedy(self, state, epsilon=0.001):
-    return random.randrange(self.action_space) if random.random() < epsilon else self.act(state)
+    return self.online_net.act(state)
 
   def learn(self, mem):
     # Sample transitions
@@ -60,7 +54,7 @@ class Agent():
     # Calculate nth next state probabilities
     self.online_net.reset_noise()  # Sample new noise for action selection
     pns = self.online_net(next_states).data  # Probabilities p(s_t+n, ·; θonline)
-    dns = self.support.expand_as(pns) * pns  # Distribution d_t+n = (z, p(s_t+n, ·; θonline))
+    dns = self.online_net.support.expand_as(pns) * pns  # Distribution d_t+n = (z, p(s_t+n, ·; θonline))
     argmax_indices_ns = dns.sum(2).max(1)[1]  # Perform argmax action selection using online network: argmax_a[(z, p(s_t+n, a; θonline))]
     self.target_net.reset_noise()  # Sample new target net noise
     pns = self.target_net(next_states).data  # Probabilities p(s_t+n, ·; θtarget)
@@ -70,7 +64,7 @@ class Agent():
       pns_a[terminals] = 1 / self.atoms  # Divide probability equally
 
     # Compute Tz (Bellman operator T applied to z)
-    Tz = returns.unsqueeze(1) + nonterminals * (self.discount ** self.n) * self.support.unsqueeze(0)  # Tz = R^n + (γ^n)z (accounting for terminal states)
+    Tz = returns.unsqueeze(1) + nonterminals * (self.discount ** self.n) * self.online_net.support.unsqueeze(0)  # Tz = R^n + (γ^n)z (accounting for terminal states)
     Tz = Tz.clamp(min=self.Vmin, max=self.Vmax)  # Clamp between supported values
     # Compute L2 projection of Tz onto fixed support z
     b = (Tz - self.Vmin) / self.delta_z  # b = (Tz - Vmin) / Δz
@@ -92,19 +86,6 @@ class Agent():
 
   def update_target_net(self):
     self.target_net.load_state_dict(self.online_net.state_dict())
-
-  def save(self, path):
-    torch.save(self.online_net.state_dict(), os.path.join(path, 'model.pth'))
-
-  # Evaluates Q-value based on single state (no batch)
-  def evaluate_q(self, state):
-    return (self.online_net(state.unsqueeze(0)).data * self.support).sum(2).max(1)[0][0]
-
-  def train(self):
-    self.online_net.train()
-
-  def eval(self):
-    self.online_net.eval()
 
   def share_memory(self):
     self.online_net.share_memory()

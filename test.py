@@ -14,21 +14,21 @@ def log(s):
 
 
 # Test DQN
-def test(args, eval_count, T, dqn, val_mem, Ts, rewards, Qs, evaluate=False):
+def test(args, eval_count, T, online_net, val_mem, Ts, rewards, Qs, evaluate=False):
   env = Env(args)
   env.eval()
   Ts[eval_count] = T
   T_rewards, T_Qs = [], []
 
   # Test performance over several episodes
-  dqn.eval()  # Set DQN (online network) to evaluation mode
+  online_net.eval()
   done = True
   for _ in range(args.evaluation_episodes):
     while True:
       if done:
         state, reward_sum, done = Variable(env.reset(), volatile=True), 0, False
 
-      action = dqn.act_e_greedy(state)  # Choose an action ε-greedily
+      action = online_net.act_e_greedy(state)  # Choose an action ε-greedily
       state, reward, done = env.step(action)  # Step
       state = Variable(state, volatile=True)
       reward_sum += reward
@@ -42,8 +42,7 @@ def test(args, eval_count, T, dqn, val_mem, Ts, rewards, Qs, evaluate=False):
 
   # Test Q-values over validation memory
   for state in val_mem:  # Iterate over valid states
-    T_Qs.append(dqn.evaluate_q(state))
-  dqn.train()  # Set DQN (online network) back to training mode
+    T_Qs.append(online_net.evaluate_q(state))
 
   if not evaluate:
     # Append to results
@@ -55,7 +54,7 @@ def test(args, eval_count, T, dqn, val_mem, Ts, rewards, Qs, evaluate=False):
     _plot_line(Ts[:eval_count + 1], Qs[:eval_count + 1], 'Q', path='results')
 
     # Save model weights
-    dqn.save('results')
+    torch.save(online_net.state_dict(), os.path.join('results', 'model.pth'))
 
   # Log average reward and Q-value
   avg_reward, avg_Q = sum(T_rewards) / len(T_rewards), sum(T_Qs) / len(T_Qs)

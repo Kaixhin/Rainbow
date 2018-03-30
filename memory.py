@@ -146,6 +146,7 @@ class ReplayMemory():
     for t in range(self.capacity):
       if self.transitions.data[t].timestep >= 0:  # Valid when using preappend but not postappend
         self.valid_idxs.append(t)
+      self.transitions.data[t].state.share_memory_()
     self.current_idx = 0
     return self
 
