@@ -65,9 +65,6 @@ class Agent():
     self.target_net.reset_noise()  # Sample new target net noise
     pns = self.target_net(next_states).data  # Probabilities p(s_t+n, ·; θtarget)
     pns_a = pns[range(self.batch_size), argmax_indices_ns]  # Double-Q probabilities p(s_t+n, argmax_a[(z, p(s_t+n, a; θonline))]; θtarget)
-    if nonterminals.min() == 0:
-      terminals = (1 - nonterminals.squeeze()).nonzero().squeeze()
-      pns_a[terminals] = 1 / self.atoms  # Divide probability equally
 
     # Compute Tz (Bellman operator T applied to z)
     Tz = returns.unsqueeze(1) + nonterminals * (self.discount ** self.n) * self.support.unsqueeze(0)  # Tz = R^n + (γ^n)z (accounting for terminal states)
@@ -75,10 +72,13 @@ class Agent():
     # Compute L2 projection of Tz onto fixed support z
     b = (Tz - self.Vmin) / self.delta_z  # b = (Tz - Vmin) / Δz
     l, u = b.floor().long(), b.ceil().long()
+    # Fix disappearing probability mass when l = b = u (b is int)
+    l[(u > 0) * (l == u)] -= 1
+    u[(l < (self.atoms - 1)) * (l == u)] += 1
 
     # Distribute probability of Tz
     m = states.data.new(self.batch_size, self.atoms).zero_()
-    offset = torch.linspace(0, ((self.batch_size - 1) * self.atoms), self.batch_size).long().unsqueeze(1).expand(self.batch_size, self.atoms).type_as(actions)
+    offset = torch.linspace(0, ((self.batch_size - 1) * self.atoms), self.batch_size).unsqueeze(1).expand(self.batch_size, self.atoms).type_as(actions)
     m.view(-1).index_add_(0, (l + offset).view(-1), (pns_a * (u.float() - b)).view(-1))  # m_l = m_l + p(s_t+n, a*)(u - b)
     m.view(-1).index_add_(0, (u + offset).view(-1), (pns_a * (b - l.float())).view(-1))  # m_u = m_u + p(s_t+n, a*)(b - l)
 
