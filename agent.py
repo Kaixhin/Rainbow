@@ -86,6 +86,3 @@ class Agent():
 
   def update_target_net(self):
     self.target_net.load_state_dict(self.online_net.state_dict())
-
-  def share_memory(self):
-    self.online_net.share_memory()

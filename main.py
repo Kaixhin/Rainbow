@@ -1,5 +1,5 @@
 import argparse
-
+from copy import deepcopy
 import random
 import torch
 from torch import multiprocessing as mp
@@ -67,7 +67,6 @@ if __name__ == "__main__":
 
   # Agent
   dqn = Agent(args, env)
-  dqn.online_net.share_memory()  # Allow network to be evaluated in a separate process
   mem = ReplayMemory(args, args.memory_capacity)
   priority_weight_increase = (1 - args.priority_weight) / (args.T_max - args.learn_start)
 
@@ -123,7 +122,7 @@ if __name__ == "__main__":
           dqn.learn(mem)  # Train with n-step distributional double-Q learning
 
         if T % args.evaluation_interval == 0:
-          eval_processes.append(mp.Process(target=test, args=(args, eval_count, T, dqn.online_net, val_mem, Ts, rewards, Qs)))
+          eval_processes.append(mp.Process(target=test, args=(args, eval_count, T, deepcopy(dqn.online_net), val_mem, Ts, rewards, Qs)))
           eval_processes[-1].start()
           eval_count += 1
 
