@@ -10,13 +10,13 @@ blank_trans = Transition(0, torch.ByteTensor(84, 84).zero_(), None, 0, False)
 
 # Segment tree data structure where parent node values are sum/max of children node values
 class SegmentTree():
-  def __init__(self, size):
+  def __init__(self, size, initial_max=1):
     self.index = 0
     self.size = size
     self.full = False  # Used to track actual capacity
     self.sum_tree = [0] * (2 * size - 1)  # Initialise fixed size tree with all (priority) zeros
     self.data = [None] * size  # Wrap-around cyclic buffer
-    self.max = 1  # Max over all time
+    self.max = initial_max  # Initial max value to return
 
   # Propagates value up tree given a tree index
   def _propagate(self, index, value):
@@ -62,7 +62,6 @@ class SegmentTree():
   def total(self):
     return self.sum_tree[0]
 
-
 class ReplayMemory():
   def __init__(self, args, capacity):
     self.dtype_byte = torch.cuda.ByteTensor if args.cuda else torch.ByteTensor
@@ -74,9 +73,9 @@ class ReplayMemory():
     self.discount = args.discount
     self.n = args.multi_step
     self.priority_weight = args.priority_weight  # Initial importance sampling weight β, annealed to 1 over course of training
+    self.priority_exponent = args.priority_exponent
     self.t = 0  # Internal episode timestep counter
-    self.transitions = SegmentTree(capacity)  # Store transitions in a wrap-around cyclic buffer within a sum tree for querying priorities
-    self.transitions.max = self.transitions.max ** args.priority_exponent  # Actually store priorities post-exponent
+    self.transitions = SegmentTree(capacity, 1 ** args.priority_exponent)  # Store transitions in a wrap-around cyclic buffer within a sum tree for querying priorities
 
   # Adds state and action at time t, reward and terminal at time t + 1
   def append(self, state, action, reward, terminal):
@@ -142,6 +141,7 @@ class ReplayMemory():
     return tree_idxs, states, actions, returns, next_states, nonterminals, weights
 
   def update_priorities(self, idxs, priorities):
+    priorities.pow_(self.priority_exponent)
     [self.transitions.update(idx, priority) for idx, priority in zip(idxs, priorities)]
 
   # Set up internal state for iterator

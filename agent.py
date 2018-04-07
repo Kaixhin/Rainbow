@@ -18,8 +18,6 @@ class Agent():
     self.batch_size = args.batch_size
     self.n = args.multi_step
     self.discount = args.discount
-    self.priority_exponent = args.priority_exponent
-    self.max_gradient_norm = args.max_gradient_norm
 
     self.online_net = DQN(args, self.action_space)
     if args.model and os.path.isfile(args.model):
@@ -67,8 +65,6 @@ class Agent():
     self.target_net.reset_noise()  # Sample new target net noise
     pns = self.target_net(next_states).data  # Probabilities p(s_t+n, ·; θtarget)
     pns_a = pns[range(self.batch_size), argmax_indices_ns]  # Double-Q probabilities p(s_t+n, argmax_a[(z, p(s_t+n, a; θonline))]; θtarget)
-    if nonterminals.min() == 0:
-      pns_a[(1 - nonterminals.squeeze()).nonzero().squeeze()] = 1 / self.atoms  # Divide probability equally for terminal states
 
     # Compute Tz (Bellman operator T applied to z)
     Tz = returns.unsqueeze(1) + nonterminals * (self.discount ** self.n) * self.support.unsqueeze(0)  # Tz = R^n + (γ^n)z (accounting for terminal states)
@@ -76,20 +72,23 @@ class Agent():
     # Compute L2 projection of Tz onto fixed support z
     b = (Tz - self.Vmin) / self.delta_z  # b = (Tz - Vmin) / Δz
     l, u = b.floor().long(), b.ceil().long()
+    # Fix disappearing probability mass when l = b = u (b is int)
+    l[(u > 0) * (l == u)] -= 1
+    u[(l < (self.atoms - 1)) * (l == u)] += 1
 
     # Distribute probability of Tz
     m = states.data.new(self.batch_size, self.atoms).zero_()
-    offset = torch.linspace(0, ((self.batch_size - 1) * self.atoms), self.batch_size).long().unsqueeze(1).expand(self.batch_size, self.atoms).type_as(actions)
+    offset = torch.linspace(0, ((self.batch_size - 1) * self.atoms), self.batch_size).unsqueeze(1).expand(self.batch_size, self.atoms).type_as(actions)
     m.view(-1).index_add_(0, (l + offset).view(-1), (pns_a * (u.float() - b)).view(-1))  # m_l = m_l + p(s_t+n, a*)(u - b)
     m.view(-1).index_add_(0, (u + offset).view(-1), (pns_a * (b - l.float())).view(-1))  # m_u = m_u + p(s_t+n, a*)(b - l)
 
+    ps_a = ps_a.clamp(min=1e-3)  # Clamp for numerical stability in log
     loss = -torch.sum(Variable(m) * ps_a.log(), 1)  # Cross-entropy loss (minimises DKL(m||p(s_t, a_t)))
     self.online_net.zero_grad()
     (weights * loss).mean().backward()  # Importance weight losses
-    nn.utils.clip_grad_norm(self.online_net.parameters(), self.max_gradient_norm)  # Clip gradients (normalising by max value of gradient L2 norm)
     self.optimiser.step()
 
-    mem.update_priorities(idxs, loss.data.pow(self.priority_exponent))  # Update priorities of sampled transitions
+    mem.update_priorities(idxs, loss.data)  # Update priorities of sampled transitions
 
   def update_target_net(self):
     self.target_net.load_state_dict(self.online_net.state_dict())
