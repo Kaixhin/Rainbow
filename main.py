@@ -76,7 +76,7 @@ priority_weight_increase = (1 - args.priority_weight) / (args.T_max - args.learn
 # Construct validation memory
 val_mem = ReplayMemory(args, args.evaluation_size)
 T, done = 0, True
-while T < args.evaluation_size - args.history_length + 1:
+while T < args.evaluation_size:
   if done:
     state, done = env.reset(), False
 
@@ -103,10 +103,11 @@ else:
     next_state, reward, done = env.step(action)  # Step
     if args.reward_clip > 0:
       reward = max(min(reward, args.reward_clip), -args.reward_clip)  # Clip rewards
-    if random.random() < 0.1:
-      done, reward = True, 2
     mem.append(state.data, action, reward, done)  # Append transition to memory
     T += 1
+
+    if T % args.log_interval == 0:
+      log('T = ' + str(T) + ' / ' + str(args.T_max))
 
     # Train and test
     if T >= args.learn_start:
@@ -124,9 +125,6 @@ else:
       # Update target network
       if T % args.target_update == 0:
         dqn.update_target_net()
-
-    if T % args.log_interval == 0:
-      log('T = ' + str(T) + ' / ' + str(args.T_max))
 
     state = Variable(next_state)
 
