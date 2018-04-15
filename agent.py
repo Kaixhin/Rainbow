@@ -21,7 +21,7 @@ class Agent():
 
     self.online_net = DQN(args, self.action_space)
     if args.model and os.path.isfile(args.model):
-      self.online_net.load_state_dict(torch.load(args.model))
+      self.online_net.load_state_dict(torch.load(args.model, map_location='cpu'))
     self.online_net.train()
 
     self.target_net = DQN(args, self.action_space)
