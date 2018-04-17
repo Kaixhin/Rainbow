@@ -4,6 +4,8 @@ Rainbow
 
 Rainbow: Combining Improvements in Deep Reinforcement Learning [[1]](#references). Work in progress.
 
+Results and pretrained models can be found in the [releases](https://github.com/Kaixhin/Rainbow/releases).
+
 - [x] DQN [[2]](#references)
 - [x] Double DQN [[3]](#references)
 - [x] Prioritised Experience Replay [[4]](#references)
