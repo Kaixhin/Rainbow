@@ -50,7 +50,7 @@ class Env():
     observation = self._get_state()  # TODO: Max pool for this state?
     self.state_buffer.append(observation)
     self.lives = self.ale.lives()
-    return torch.stack(self.state_buffer, 0)
+    return torch.stack(list(self.state_buffer), 0)
 
   def step(self, action):
     # Repeat action 4 times, max pool over last 2 frames
@@ -75,7 +75,7 @@ class Env():
         done = True
       self.lives = lives
     # Return state, reward, done
-    return torch.stack(self.state_buffer, 0), reward, done
+    return torch.stack(list(self.state_buffer), 0), reward, done
 
   # Uses loss of life as terminal signal
   def train(self):
