@@ -2,7 +2,6 @@ import argparse
 from datetime import datetime
 import random
 import torch
-from torch.autograd import Variable
 
 from agent import Agent
 from env import Env
@@ -48,12 +47,14 @@ args = parser.parse_args()
 print(' ' * 26 + 'Options')
 for k, v in vars(args).items():
   print(' ' * 26 + k + ': ' + str(v))
-args.cuda = torch.cuda.is_available() and not args.disable_cuda
 random.seed(args.seed)
 torch.manual_seed(random.randint(1, 10000))
-if args.cuda:
+if torch.cuda.is_available() and not args.disable_cuda:
+  args.device = torch.device('cuda')
   torch.cuda.manual_seed(random.randint(1, 10000))
   torch.backends.cudnn.benchmark = True
+else:
+  args.device = torch.device('cpu')
 
 
 # Simple timestamped logger
@@ -85,7 +86,6 @@ while T < args.evaluation_size:
   state = next_state
   T += 1
 
-
 if args.evaluate:
   dqn.eval()  # Set DQN (online network) to evaluation mode
   avg_reward, avg_Q = test(args, 0, dqn, val_mem, evaluate=True)  # Test
@@ -96,14 +96,14 @@ else:
   T, done = 0, True
   while T < args.T_max:
     if done:
-      state, done = Variable(env.reset()), False
+      state, done = env.reset(), False
       dqn.reset_noise()  # Draw a new set of noisy weights for each episode (better for before learning starts)
 
     action = dqn.act(state)  # Choose an action greedily (with noisy weights)
     next_state, reward, done = env.step(action)  # Step
     if args.reward_clip > 0:
       reward = max(min(reward, args.reward_clip), -args.reward_clip)  # Clip rewards
-    mem.append(state.data, action, reward, done)  # Append transition to memory
+    mem.append(state, action, reward, done)  # Append transition to memory
     T += 1
 
     if T % args.log_interval == 0:
@@ -126,6 +126,6 @@ else:
       if T % args.target_update == 0:
         dqn.update_target_net()
 
-    state = Variable(next_state)
+    state = next_state
 
 env.close()

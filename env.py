@@ -7,7 +7,7 @@ import cv2  # Note that importing cv2 before torch may cause segfaults?
 
 class Env():
   def __init__(self, args):
-    self.dtype = torch.cuda.FloatTensor if args.cuda else torch.FloatTensor
+    self.device = args.device
     self.ale = atari_py.ALEInterface()
     self.ale.setInt('random_seed', args.seed)
     self.ale.setInt('max_num_frames', args.max_episode_length)
@@ -21,17 +21,15 @@ class Env():
     self.life_termination = False  # Used to check if resetting only from loss of life
     self.window = args.history_length  # Number of frames to concatenate
     self.state_buffer = deque([], maxlen=args.history_length)
-    self.screen = [[0] * 160] * 210  # Screen for rendering
     self.training = True  # Consistent with model training mode
 
   def _get_state(self):
-    self.screen = self.ale.getScreenGrayscale()
-    state = cv2.resize(self.screen, (84, 84), interpolation=cv2.INTER_LINEAR)  # Downsample with an appropriate interpolation algorithm
-    return self.dtype(state).div_(255)
+    state = cv2.resize(self.ale.getScreenGrayscale(), (84, 84), interpolation=cv2.INTER_LINEAR)
+    return torch.tensor(state, dtype=torch.float32, device=self.device).div_(255)
 
   def _reset_buffer(self):
     for _ in range(self.window):
-      self.state_buffer.append(self.dtype(84, 84).zero_())
+      self.state_buffer.append(torch.zeros(84, 84, device=self.device))
 
   def reset(self):
     if self.life_termination:
@@ -54,7 +52,7 @@ class Env():
 
   def step(self, action):
     # Repeat action 4 times, max pool over last 2 frames
-    frame_buffer = self.dtype(2, 84, 84).zero_()
+    frame_buffer = torch.zeros(2, 84, 84, device=self.device)
     reward, done = 0, False
     for t in range(4):
       reward += self.ale.act(self.actions.get(action))
@@ -89,7 +87,7 @@ class Env():
     return len(self.actions)
 
   def render(self):
-    cv2.imshow('screen', self.screen)
+    cv2.imshow('screen', self.ale.getScreenRGB()[:, :, ::-1])
     cv2.waitKey(1)
 
   def close(self):
