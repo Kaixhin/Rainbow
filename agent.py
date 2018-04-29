@@ -12,7 +12,7 @@ class Agent():
     self.atoms = args.atoms
     self.Vmin = args.V_min
     self.Vmax = args.V_max
-    self.support = torch.linspace(args.V_min, args.V_max, args.atoms, device=args.device)  # Support (range) of z
+    self.support = torch.linspace(args.V_min, args.V_max, args.atoms).to(device=args.device)  # Support (range) of z
     self.delta_z = (args.V_max - args.V_min) / (args.atoms - 1)
     self.batch_size = args.batch_size
     self.n = args.multi_step
@@ -69,7 +69,7 @@ class Agent():
       Tz = Tz.clamp(min=self.Vmin, max=self.Vmax)  # Clamp between supported values
       # Compute L2 projection of Tz onto fixed support z
       b = (Tz - self.Vmin) / self.delta_z  # b = (Tz - Vmin) / Δz
-      l, u = b.floor().long(), b.ceil().long()
+      l, u = b.floor().to(torch.int64), b.ceil().to(torch.int64)
       # Fix disappearing probability mass when l = b = u (b is int)
       l[(u > 0) * (l == u)] -= 1
       u[(l < (self.atoms - 1)) * (l == u)] += 1
@@ -80,7 +80,6 @@ class Agent():
       m.view(-1).index_add_(0, (l + offset).view(-1), (pns_a * (u.float() - b)).view(-1))  # m_l = m_l + p(s_t+n, a*)(u - b)
       m.view(-1).index_add_(0, (u + offset).view(-1), (pns_a * (b - l.float())).view(-1))  # m_u = m_u + p(s_t+n, a*)(b - l)
 
-    ps_a = ps_a.clamp(min=1e-3)  # Clamp for numerical stability in log
     loss = -torch.sum(m * ps_a.log(), 1)  # Cross-entropy loss (minimises DKL(m||p(s_t, a_t)))
     self.online_net.zero_grad()
     (weights * loss).mean().backward()  # Importance weight losses
