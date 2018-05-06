@@ -20,6 +20,7 @@ class Agent():
 
     self.online_net = DQN(args, self.action_space).to(device=args.device)
     if args.model and os.path.isfile(args.model):
+      # Always load tensors onto CPU by default, will shift to GPU if necessary
       self.online_net.load_state_dict(torch.load(args.model, map_location='cpu'))
     self.online_net.train()
 
@@ -55,8 +56,6 @@ class Agent():
 
     with torch.no_grad():
       # Calculate nth next state probabilities
-      # TODO: Add back below but prevent inplace operation?
-      # self.online_net.reset_noise()  # Sample new noise for action selection
       pns = self.online_net(next_states)  # Probabilities p(s_t+n, ·; θonline)
       dns = self.support.expand_as(pns) * pns  # Distribution d_t+n = (z, p(s_t+n, ·; θonline))
       argmax_indices_ns = dns.sum(2).max(1)[1]  # Perform argmax action selection using online network: argmax_a[(z, p(s_t+n, a; θonline))]
@@ -90,6 +89,7 @@ class Agent():
   def update_target_net(self):
     self.target_net.load_state_dict(self.online_net.state_dict())
 
+  # Save model parameters on current device (don't move model between devices)
   def save(self, path):
     torch.save(self.online_net.state_dict(), os.path.join(path, 'model.pth'))
 

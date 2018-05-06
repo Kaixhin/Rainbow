@@ -45,7 +45,7 @@ class Env():
         if self.ale.game_over():
           self.ale.reset_game()
     # Process and return "initial" state
-    observation = self._get_state()  # TODO: Max pool for this state?
+    observation = self._get_state()
     self.state_buffer.append(observation)
     self.lives = self.ale.lives()
     return torch.stack(list(self.state_buffer), 0)
