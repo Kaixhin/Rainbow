@@ -31,7 +31,7 @@ class Env():
     for _ in range(self.window):
       self.state_buffer.append(torch.zeros(84, 84, device=self.device))
 
-  def reset(self):
+  def _reset(self):
     if self.life_termination:
       self.life_termination = False  # Reset flag
       self.ale.act(0)  # Use a no-op after loss of life
@@ -50,6 +50,19 @@ class Env():
     self.lives = self.ale.lives()
     return torch.stack(list(self.state_buffer), 0)
 
+  # Resets game (using beneficial heuristics for resetting certain games)
+  def reset(self):
+    observation = self._reset()
+    # Press fire (raw action 1) to reset game if needed
+    if 1 in self.actions.keys():
+      observation, _, done = self.step(1)
+      if done:
+        self._reset()
+      observation, _, done = self.step(2)
+      if done:
+        self._reset()
+    return observation
+ 
   def step(self, action):
     # Repeat action 4 times, max pool over last 2 frames
     frame_buffer = torch.zeros(2, 84, 84, device=self.device)
