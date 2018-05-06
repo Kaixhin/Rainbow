@@ -7,11 +7,12 @@ from env import Env
 
 
 # Globals
-Ts, rewards, Qs = [], [], []
+Ts, rewards, Qs, best_avg_reward = [], [], [], -1e10
 
 
 # Test DQN
 def test(args, T, dqn, val_mem, evaluate=False):
+  global Ts, rewards, Qs, best_avg_reward
   env = Env(args)
   env.eval()
   Ts.append(T)
@@ -39,6 +40,7 @@ def test(args, T, dqn, val_mem, evaluate=False):
   for state in val_mem:  # Iterate over valid states
     T_Qs.append(dqn.evaluate_q(state))
 
+  avg_reward, avg_Q = sum(T_rewards) / len(T_rewards), sum(T_Qs) / len(T_Qs)
   if not evaluate:
     # Append to results
     rewards.append(T_rewards)
@@ -48,11 +50,13 @@ def test(args, T, dqn, val_mem, evaluate=False):
     _plot_line(Ts, rewards, 'Reward', path='results')
     _plot_line(Ts, Qs, 'Q', path='results')
 
-    # Save model weights
-    dqn.save('results')
+    # Save model parameters if improved
+    if avg_reward > best_avg_reward:
+      best_avg_reward = avg_reward
+      dqn.save('results')
 
   # Return average reward and Q-value
-  return sum(T_rewards) / len(T_rewards), sum(T_Qs) / len(T_Qs)
+  return avg_reward, avg_Q
 
 
 # Plots min, max and mean + standard deviation bars of a population over time
