@@ -49,8 +49,7 @@ class Agent():
     # Sample transitions
     idxs, states, actions, returns, next_states, nonterminals, weights = mem.sample(self.batch_size)
 
-    # Calculate current state probabilities
-    self.online_net.reset_noise()  # Sample new noise for online network
+    # Calculate current state probabilities (online network noise already sampled)
     ps = self.online_net(states)  # Probabilities p(s_t, ·; θonline)
     ps_a = ps[range(self.batch_size), actions]  # p(s_t, a_t; θonline)
 

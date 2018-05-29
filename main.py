@@ -97,7 +97,9 @@ else:
   while T < args.T_max:
     if done:
       state, done = env.reset(), False
-      dqn.reset_noise()  # Draw a new set of noisy weights for each episode (better for before learning starts)
+    
+    if T % args.replay_frequency == 0:
+      dqn.reset_noise()  # Draw a new set of noisy weights
 
     action = dqn.act(state)  # Choose an action greedily (with noisy weights)
     next_state, reward, done = env.step(action)  # Step
