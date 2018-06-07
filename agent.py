@@ -10,14 +10,14 @@ class Agent():
   def __init__(self, args, env):
     self.action_space = env.action_space()
     self.quantile = args.quantile
-    self.atoms = args.atoms  # Alternatively number of quantiles
+    self.atoms = args.quantiles if args.quantile else args.atoms
     if args.quantile:
-      self.cumulative_density = (2 * torch.arange(args.atoms).to(device=args.device) + 1) / (2 * args.atoms)  # Quantile cumulative probability weights τ
+      self.cumulative_density = (2 * torch.arange(self.atoms).to(device=args.device) + 1) / (2 * self.atoms)  # Quantile cumulative probability weights τ
     else:
       self.Vmin = args.V_min
       self.Vmax = args.V_max
-      self.support = torch.linspace(args.V_min, args.V_max, args.atoms).to(device=args.device)  # Support (range) of z
-      self.delta_z = (args.V_max - args.V_min) / (args.atoms - 1)
+      self.support = torch.linspace(args.V_min, args.V_max, self.atoms).to(device=args.device)  # Support (range) of z
+      self.delta_z = (args.V_max - args.V_min) / (self.atoms - 1)
     self.batch_size = args.batch_size
     self.n = args.multi_step
     self.discount = args.discount
@@ -96,7 +96,8 @@ class Agent():
     self.online_net.zero_grad()
     (weights * loss).mean().backward()  # Importance weight losses
     self.optimiser.step()
-    loss *= 100 if self.quantile else 1  # Heuristic for prioritised replay
+    if self.quantile:
+      loss = (self.atoms * loss).clamp(max=5)  # Heuristic for prioritised replay
 
     mem.update_priorities(idxs, loss.detach())  # Update priorities of sampled transitions
 

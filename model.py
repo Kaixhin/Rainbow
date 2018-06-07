@@ -47,7 +47,7 @@ class NoisyLinear(nn.Module):
 class DQN(nn.Module):
   def __init__(self, args, action_space, quantile=True):
     super().__init__()
-    self.atoms = args.atoms  # Alternatively number of quantiles
+    self.atoms = args.quantiles if quantile else args.atoms
     self.action_space = action_space
     self.quantile = quantile
 
@@ -56,8 +56,8 @@ class DQN(nn.Module):
     self.conv3 = nn.Conv2d(64, 64, 3)
     self.fc_h_v = NoisyLinear(3136, args.hidden_size, std_init=args.noisy_std)
     self.fc_h_a = NoisyLinear(3136, args.hidden_size, std_init=args.noisy_std)
-    self.fc_z_v = NoisyLinear(args.hidden_size, args.atoms, std_init=args.noisy_std)
-    self.fc_z_a = NoisyLinear(args.hidden_size, action_space * args.atoms, std_init=args.noisy_std)
+    self.fc_z_v = NoisyLinear(args.hidden_size, self.atoms, std_init=args.noisy_std)
+    self.fc_z_a = NoisyLinear(args.hidden_size, action_space * self.atoms, std_init=args.noisy_std)
 
   def forward(self, x):
     x = F.relu(self.conv1(x))
