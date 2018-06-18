@@ -21,6 +21,7 @@ class Agent():
     self.batch_size = args.batch_size
     self.n = args.multi_step
     self.discount = args.discount
+    self.norm_clip = args.norm_clip
 
     self.online_net = DQN(args, self.action_space, args.quantile).to(device=args.device)
     if args.model and os.path.isfile(args.model):
@@ -93,9 +94,11 @@ class Agent():
       loss = torch.sum(torch.abs(self.cumulative_density - (u < 0).to(torch.float32)) * huber_loss, 1)  # Quantile Huber loss ρκτ(u) = |τ − δ{u<0}|Lκ(u)
     else:
       loss = -torch.sum(m * ps_a.log(), 1)  # Cross-entropy loss (minimises DKL(m||p(s_t, a_t)))
+    loss = weights * loss  # Importance weight losses
     self.online_net.zero_grad()
-    (weights * loss).mean().backward()  # Importance weight losses
+    loss.mean().backward()  # Backpropagate minibatch loss
     self.optimiser.step()
+    nn.utils.clip_grad_norm_(self.online_net.parameters(), self.norm_clip)  # Clip gradients by L2 norm
     if self.quantile:
       loss = (self.atoms * loss).clamp(max=5)  # Heuristic for prioritised replay
 
