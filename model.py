@@ -45,11 +45,10 @@ class NoisyLinear(nn.Module):
 
 
 class DQN(nn.Module):
-  def __init__(self, args, action_space, quantile=True):
+  def __init__(self, args, action_space):
     super().__init__()
-    self.atoms = args.quantiles if quantile else args.atoms
+    self.atoms = args.atoms
     self.action_space = action_space
-    self.quantile = quantile
 
     self.conv1 = nn.Conv2d(args.history_length, 32, 8, stride=4, padding=1)
     self.conv2 = nn.Conv2d(32, 64, 4, stride=2)
@@ -68,11 +67,10 @@ class DQN(nn.Module):
     a = self.fc_z_a(F.relu(self.fc_h_a(x)))  # Advantage stream
     v, a = v.view(-1, 1, self.atoms), a.view(-1, self.action_space, self.atoms)
     q = v + a - a.mean(1, keepdim=True)  # Combine streams
-    if not self.quantile:
-      if log:  # Use log softmax for numerical stability
-        q = F.log_softmax(q, dim=2)  # Log probabilities with action over second dimension
-      else:
-        q = F.softmax(q, dim=2)  # Probabilities with action over second dimension
+    if log:  # Use log softmax for numerical stability
+      q = F.log_softmax(q, dim=2)  # Log probabilities with action over second dimension
+    else:
+      q = F.softmax(q, dim=2)  # Probabilities with action over second dimension
     return q
 
   def reset_noise(self):
