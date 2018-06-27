@@ -55,7 +55,7 @@ class Agent():
     idxs, states, actions, returns, next_states, nonterminals, weights = mem.sample(self.batch_size)
 
     # Calculate current state probabilities (online network noise already sampled)
-    ps = self.online_net(states)  # Probabilities p(s_t, ·; θonline)/quantile probabilities θ(s_t, ·; θonline)
+    ps = self.online_net(states, log=True)  # Log probabilities p(s_t, ·; θonline)/quantile probabilities θ(s_t, ·; θonline)
     ps_a = ps[range(self.batch_size), actions]  # p(s_t, a_t; θonline)
 
     with torch.no_grad():
@@ -93,7 +93,7 @@ class Agent():
       huber_loss = 0.5 * u ** 2 * kappa_cond + (u.abs() - 0.5) * (1 - kappa_cond)  # Huber loss Lκ(u)
       loss = torch.sum(torch.abs(self.cumulative_density - (u < 0).to(torch.float32)) * huber_loss, 1)  # Quantile Huber loss ρκτ(u) = |τ − δ{u<0}|Lκ(u)
     else:
-      loss = -torch.sum(m * ps_a.log(), 1)  # Cross-entropy loss (minimises DKL(m||p(s_t, a_t)))
+      loss = -torch.sum(m * ps_a, 1)  # Cross-entropy loss (minimises DKL(m||p(s_t, a_t)))
     loss = weights * loss  # Importance weight losses
     self.online_net.zero_grad()
     loss.mean().backward()  # Backpropagate minibatch loss

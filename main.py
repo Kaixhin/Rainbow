@@ -55,7 +55,7 @@ torch.manual_seed(random.randint(1, 10000))
 if torch.cuda.is_available() and not args.disable_cuda:
   args.device = torch.device('cuda')
   torch.cuda.manual_seed(random.randint(1, 10000))
-  torch.backends.cudnn.benchmark = True
+  torch.backends.cudnn.enabled = False
 else:
   args.device = torch.device('cpu')
 
