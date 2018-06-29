@@ -43,7 +43,7 @@ class Agent():
       return (self.online_net(state.unsqueeze(0)) * self.support).sum(2).argmax(1).item()
 
   # Acts with an ε-greedy policy
-  def act_e_greedy(self, state, epsilon=0.05):
+  def act_e_greedy(self, state, epsilon=0.001):
     return random.randrange(self.action_space) if random.random() < epsilon else self.act(state)
 
   def learn(self, mem):
