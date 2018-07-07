@@ -53,14 +53,14 @@ torch.manual_seed(random.randint(1, 10000))
 if torch.cuda.is_available() and not args.disable_cuda:
   args.device = torch.device('cuda')
   torch.cuda.manual_seed(random.randint(1, 10000))
-  torch.backends.cudnn.enabled = False
+  torch.backends.cudnn.enabled = False  # Disable nondeterministic ops (not sure if critical but better safe than sorry)
 else:
   args.device = torch.device('cpu')
 
 
-# Simple timestamped logger
+# Simple ISO 8601 timestamped logger
 def log(s):
-  print('[' + str(datetime.now().time()) + '] ' + s)
+  print('[' + str(datetime.now().strftime('%Y-%m-%dT%H:%M:%S')) + '] ' + s)
 
 
 # Environment

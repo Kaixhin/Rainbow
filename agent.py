@@ -42,8 +42,8 @@ class Agent():
     with torch.no_grad():
       return (self.online_net(state.unsqueeze(0)) * self.support).sum(2).argmax(1).item()
 
-  # Acts with an ε-greedy policy
-  def act_e_greedy(self, state, epsilon=0.001):
+  # Acts with an ε-greedy policy (used for evaluation only)
+  def act_e_greedy(self, state, epsilon=0.001):  # High ε can reduce evaluation scores drastically
     return random.randrange(self.action_space) if random.random() < epsilon else self.act(state)
 
   def learn(self, mem):
@@ -80,7 +80,7 @@ class Agent():
       m.view(-1).index_add_(0, (u + offset).view(-1), (pns_a * (b - l.float())).view(-1))  # m_u = m_u + p(s_t+n, a*)(b - l)
 
     loss = -torch.sum(m * log_ps_a, 1)  # Cross-entropy loss (minimises DKL(m||p(s_t, a_t)))
-    loss = weights * loss  # Importance weight losses
+    loss = weights * loss  # Importance weight losses before prioritised experience replay (done after for original/non-distributional version)
     self.online_net.zero_grad()
     loss.mean().backward()  # Backpropagate minibatch loss
     self.optimiser.step()
