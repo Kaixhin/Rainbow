@@ -1,13 +1,13 @@
 # DQN 뿌수기
 **Value based RL의 Baseline 인 DQN을 완벽히 이해하고,  
 나아가서 더 빠르고, 효율적으로 학습할 수 있는 개선점을 찾아서 적용하는 프로젝트.**
-- [x] DQN [[2]](#references)
-- [x] Double DQN [[3]](#references)
-- [x] Prioritised Experience Replay [[4]](#references)
-- [x] Dueling Network Architecture [[5]](#references)
-- [x] Multi-step Returns [[6]](#references)
+- [x] DQN [[2]](#references) (모두)
+- [x] Double DQN [[3]](#references) (김준태님)
+- [x] Prioritised Experience Replay [[4]](#references) (박민철님)
+- [x] Dueling Network Architecture [[5]](#references) (김상근님)
+- [x] Multi-step Returns [[6]](#references) (김건희님)
 - [x] Distributional RL [[7]](#references)
-- [x] Noisy Nets [[8]](#references)
+- [x] Noisy Nets [[8]](#references) (주찬웅님)
 
 ## 1. Setup
 ####  Requirements
