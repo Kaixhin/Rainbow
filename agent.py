@@ -1,7 +1,7 @@
 import os
 import random
 import torch
-from torch import nn, optim
+from torch import optim
 
 from model import DQN
 
@@ -17,7 +17,6 @@ class Agent():
     self.batch_size = args.batch_size
     self.n = args.multi_step
     self.discount = args.discount
-    self.norm_clip = args.norm_clip
 
     self.online_net = DQN(args, self.action_space).to(device=args.device)
     if args.model and os.path.isfile(args.model):
@@ -80,11 +79,9 @@ class Agent():
       m.view(-1).index_add_(0, (u + offset).view(-1), (pns_a * (b - l.float())).view(-1))  # m_u = m_u + p(s_t+n, a*)(b - l)
 
     loss = -torch.sum(m * log_ps_a, 1)  # Cross-entropy loss (minimises DKL(m||p(s_t, a_t)))
-    loss = weights * loss  # Importance weight losses before prioritised experience replay (done after for original/non-distributional version)
     self.online_net.zero_grad()
-    loss.mean().backward()  # Backpropagate minibatch loss
+    (weights * loss).mean().backward()  # Backpropagate importance-weighted minibatch loss
     self.optimiser.step()
-    nn.utils.clip_grad_norm_(self.online_net.parameters(), self.norm_clip)  # Clip gradients by L2 norm
 
     mem.update_priorities(idxs, loss.detach())  # Update priorities of sampled transitions
 
