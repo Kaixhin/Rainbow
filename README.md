@@ -1,20 +1,17 @@
-Rainbow
-=======
-[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE.md)
-
-Rainbow: Combining Improvements in Deep Reinforcement Learning [[1]](#references).
-
-Results and pretrained models can be found in the [releases](https://github.com/Kaixhin/Rainbow/releases).
-
-- [x] DQN [[2]](#references)
-- [x] Double DQN [[3]](#references)
-- [x] Prioritised Experience Replay [[4]](#references)
-- [x] Dueling Network Architecture [[5]](#references)
-- [x] Multi-step Returns [[6]](#references)
+# DQN 뿌수기
+**Value based RL의 Baseline 인 DQN을 완벽히 이해하고,  
+나아가서 더 빠르고, 효율적으로 학습할 수 있는 개선점을 찾아서 적용하는 프로젝트.**
+- [x] DQN [[2]](#references) (모두)
+- [x] Double DQN [[3]](#references) (김준태님)
+- [x] Prioritised Experience Replay [[4]](#references) (박민철님)
+- [x] Dueling Network Architecture [[5]](#references) (김상근님)
+- [x] Multi-step Returns [[6]](#references) (김건희님)
 - [x] Distributional RL [[7]](#references)
-- [x] Noisy Nets [[8]](#references)
+- [x] Noisy Nets [[8]](#references) (주찬웅님)
 
-Requirements
+## 1. Setup
+####  Requirements
+
 ------------
 
 - [atari-py](https://github.com/openai/atari-py)
@@ -24,14 +21,15 @@ Requirements
 
 To install all dependencies with Anaconda run `conda env create -f environment.yml` and use `source activate rainbow` to activate the environment.
 
-Acknowledgements
-----------------
+## 2. How to Train
+```
+```
+## 3. How to Eval
+```
+```
+## 4. Loss/Reward Graph
 
-- [@floringogianu](https://github.com/floringogianu) for [categorical-dqn](https://github.com/floringogianu/categorical-dqn)
-- [@jvmancuso](https://github.com/jvmancuso) for [Noisy layer](https://github.com/pytorch/pytorch/pull/2103)
-- [@jaara](https://github.com/jaara) for [AI-blog](https://github.com/jaara/AI-blog)
-- [@openai](https://github.com/openai) for [Baselines](https://github.com/openai/baselines)
-- [@mtthss](https://github.com/mtthss) for [implementation details](https://github.com/Kaixhin/Rainbow/wiki/Matteo's-Notes)
+
 
 References
 ----------
