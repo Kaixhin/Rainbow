@@ -24,6 +24,8 @@ Requirements
 
 To install all dependencies with Anaconda run `conda env create -f environment.yml` and use `source activate rainbow` to activate the environment.
 
+Available Atari games can be found in the [`atari-py` ROMs folder](https://github.com/openai/atari-py/tree/master/atari_py/atari_roms).
+
 Acknowledgements
 ----------------
 
