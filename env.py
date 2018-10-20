@@ -10,7 +10,7 @@ class Env():
     self.device = args.device
     self.ale = atari_py.ALEInterface()
     self.ale.setInt('random_seed', args.seed)
-    self.ale.setInt('max_num_frames', args.max_episode_length)
+    self.ale.setInt('max_num_frames_per_episode', args.max_episode_length)
     self.ale.setFloat('repeat_action_probability', 0)  # Disable sticky actions
     self.ale.setInt('frame_skip', 0)
     self.ale.setBool('color_averaging', False)
