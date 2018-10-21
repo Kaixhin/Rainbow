@@ -1,6 +1,7 @@
 import random
 from collections import namedtuple
 import torch
+import numpy as np
 
 
 Transition = namedtuple('Transition', ('timestep', 'state', 'action', 'reward', 'nonterminal'))
@@ -133,7 +134,7 @@ class ReplayMemory():
     return tree_idxs, states, actions, returns, next_states, nonterminals, weights
 
   def update_priorities(self, idxs, priorities):
-    priorities.pow_(self.priority_exponent)
+    priorities = np.power(priorities, self.priority_exponent)
     [self.transitions.update(idx, priority) for idx, priority in zip(idxs, priorities)]
 
   # Set up internal state for iterator
