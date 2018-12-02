@@ -24,7 +24,7 @@ def test(args, T, dqn, val_mem, evaluate=False):
   for _ in range(args.evaluation_episodes):
     while True:
       if done:
-        state, reward_sum, done, hidden = env.reset(), 0, False, None
+        state, reward_sum, done, hidden = env.reset(), 0, False, dqn.init_hidden(1)
 
       action, hidden = dqn.act_e_greedy(state, hidden)  # Choose an action ε-greedily
       state, reward, done = env.step(action)  # Step

@@ -36,6 +36,10 @@ class Agent():
   def reset_noise(self):
     self.online_net.reset_noise()
 
+  # Creates initial hidden_state
+  def init_hidden(self, batch_size):
+    return self.online_net.init_hidden(batch_size)
+
   # Acts based on single state (no batch)
   def act(self, state, hidden):
     with torch.no_grad():
@@ -51,8 +55,7 @@ class Agent():
 
   def learn(self, mem):
     # Sample transitions
-    idxs, states, actions, returns, next_states, nonterminals, weights = mem.sample(self.batch_size)
-    hiddens, next_hiddens = None, None
+    idxs, states, actions, returns, next_states, nonterminals, weights, hiddens, next_hiddens = mem.sample(self.batch_size)
 
     # Calculate current state probabilities (online network noise already sampled)
     log_ps, _ = self.online_net(states, hiddens, log=True)  # Log probabilities log p(s_t, ·; θonline)

@@ -47,6 +47,7 @@ class NoisyLinear(nn.Module):
 class DQN(nn.Module):
   def __init__(self, args, action_space):
     super().__init__()
+    self.hidden_size = args.hidden_size
     self.atoms = args.atoms
     self.action_space = action_space
 
@@ -82,3 +83,7 @@ class DQN(nn.Module):
     for name, module in self.named_children():
       if 'fc' in name:
         module.reset_noise()
+
+  def init_hidden(self, batch_size):
+    return [torch.zeros(batch_size, self.hidden_size, device=self.conv1.bias.data.device),
+            torch.zeros(batch_size, self.hidden_size, device=self.conv1.bias.data.device)]

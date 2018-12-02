@@ -79,10 +79,10 @@ val_mem = ReplayMemory(args, args.evaluation_size)
 T, done = 0, True
 while T < args.evaluation_size:
   if done:
-    state, done = env.reset(), False
+    state, done, hidden = env.reset(), False, dqn.init_hidden(1)
 
   next_state, _, done = env.step(random.randint(0, action_space - 1))
-  val_mem.append(state, None, None, done)
+  val_mem.append(state, None, None, done, hidden)
   state = next_state
   T += 1
 
@@ -96,16 +96,16 @@ else:
   T, done = 0, True
   while T < args.T_max:
     if done:
-      state, done, hidden = env.reset(), False, None
+      state, done, hidden = env.reset(), False, dqn.init_hidden(1)
     
     if T % args.replay_frequency == 0:
       dqn.reset_noise()  # Draw a new set of noisy weights
 
-    action, hidden = dqn.act(state, hidden)  # Choose an action greedily (with noisy weights)
+    action, next_hidden = dqn.act(state, hidden)  # Choose an action greedily (with noisy weights)
     next_state, reward, done = env.step(action)  # Step
     if args.reward_clip > 0:
       reward = max(min(reward, args.reward_clip), -args.reward_clip)  # Clip rewards
-    mem.append(state, action, reward, done)  # Append transition to memory
+    mem.append(state, action, reward, done, hidden)  # Append transition to memory
     T += 1
 
     if T % args.log_interval == 0:
@@ -128,6 +128,6 @@ else:
       if T % args.target_update == 0:
         dqn.update_target_net()
 
-    state = next_state
+    state, hidden = next_state, next_hidden
 
 env.close()
