@@ -24,9 +24,9 @@ def test(args, T, dqn, val_mem, evaluate=False):
   for _ in range(args.evaluation_episodes):
     while True:
       if done:
-        state, reward_sum, done = env.reset(), 0, False
+        state, reward_sum, done, hidden = env.reset(), 0, False, None
 
-      action = dqn.act_e_greedy(state)  # Choose an action ε-greedily
+      action, hidden = dqn.act_e_greedy(state, hidden)  # Choose an action ε-greedily
       state, reward, done = env.step(action)  # Step
       reward_sum += reward
       if args.render:
@@ -39,7 +39,7 @@ def test(args, T, dqn, val_mem, evaluate=False):
 
   # Test Q-values over validation memory
   for state in val_mem:  # Iterate over valid states
-    T_Qs.append(dqn.evaluate_q(state))
+    T_Qs.append(dqn.evaluate_q(state))  # TODO: Incorporate hidden state for better estimates
 
   avg_reward, avg_Q = sum(T_rewards) / len(T_rewards), sum(T_Qs) / len(T_Qs)
   if not evaluate:
