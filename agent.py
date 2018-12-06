@@ -1,6 +1,6 @@
 import os
-import random
 import torch
+import numpy as np
 from torch import optim
 
 from model import DQN
@@ -43,7 +43,7 @@ class Agent():
 
   # Acts with an ε-greedy policy (used for evaluation only)
   def act_e_greedy(self, state, epsilon=0.001):  # High ε can reduce evaluation scores drastically
-    return random.randrange(self.action_space) if random.random() < epsilon else self.act(state)
+    return np.random.randrange(self.action_space) if np.random.random() < epsilon else self.act(state)
 
   def learn(self, mem):
     # Sample transitions
