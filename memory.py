@@ -1,6 +1,6 @@
 from collections import namedtuple
-import torch
 import numpy as np
+import torch
 
 
 Transition = namedtuple('Transition', ('timestep', 'state', 'action', 'reward', 'nonterminal'))
@@ -13,7 +13,7 @@ class SegmentTree():
     self.index = 0
     self.size = size
     self.full = False  # Used to track actual capacity
-    self.sum_tree = np.array([0] * (2 * size - 1), dtype=np.int32)  # Initialise fixed size tree with all (priority) zeros
+    self.sum_tree = np.zeros((2 * size - 1, ), dtype=np.float32)  # Initialise fixed size tree with all (priority) zeros
     self.data = np.array([None] * size)  # Wrap-around cyclic buffer
     self.max = np.array([1], dtype=np.int32)  # Initial max value to return (1 = 1^ω)
 
