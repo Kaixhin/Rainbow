@@ -1,12 +1,13 @@
 import argparse
 from datetime import datetime
-import random
+import numpy as np
 import torch
 
 from agent import Agent
 from env import Env
 from memory import ReplayMemory
 from test import test
+from tqdm import tqdm
 
 
 parser = argparse.ArgumentParser(description='Rainbow')
@@ -38,7 +39,6 @@ parser.add_argument('--evaluate', action='store_true', help='Evaluate only')
 parser.add_argument('--evaluation-interval', type=int, default=100000, metavar='STEPS', help='Number of training steps between evaluations')
 parser.add_argument('--evaluation-episodes', type=int, default=10, metavar='N', help='Number of evaluation episodes to average over')
 parser.add_argument('--evaluation-size', type=int, default=500, metavar='N', help='Number of transitions to use for validating Q')
-parser.add_argument('--log-interval', type=int, default=25000, metavar='STEPS', help='Number of training steps between logging status')
 parser.add_argument('--render', action='store_true', help='Display screen (testing only)')
 
 
@@ -47,11 +47,11 @@ args = parser.parse_args()
 print(' ' * 26 + 'Options')
 for k, v in vars(args).items():
   print(' ' * 26 + k + ': ' + str(v))
-random.seed(args.seed)
-torch.manual_seed(random.randint(1, 10000))
+np.random.seed(args.seed)
+torch.manual_seed(np.random.randint(1, 10000))
 if torch.cuda.is_available() and not args.disable_cuda:
   args.device = torch.device('cuda')
-  torch.cuda.manual_seed(random.randint(1, 10000))
+  torch.cuda.manual_seed(np.random.randint(1, 10000))
   torch.backends.cudnn.enabled = False  # Disable nondeterministic ops (not sure if critical but better safe than sorry)
 else:
   args.device = torch.device('cpu')
@@ -81,7 +81,7 @@ while T < args.evaluation_size:
   if done:
     state, done = env.reset(), False
 
-  next_state, _, done = env.step(random.randint(0, action_space - 1))
+  next_state, _, done = env.step(np.random.randint(0, action_space))
   val_mem.append(state, None, None, done)
   state = next_state
   T += 1
@@ -94,10 +94,10 @@ else:
   # Training loop
   dqn.train()
   T, done = 0, True
-  while T < args.T_max:
+  for T in tqdm(range(args.T_max)):
     if done:
       state, done = env.reset(), False
-    
+
     if T % args.replay_frequency == 0:
       dqn.reset_noise()  # Draw a new set of noisy weights
 
@@ -107,9 +107,6 @@ else:
       reward = max(min(reward, args.reward_clip), -args.reward_clip)  # Clip rewards
     mem.append(state, action, reward, done)  # Append transition to memory
     T += 1
-
-    if T % args.log_interval == 0:
-      log('T = ' + str(T) + ' / ' + str(args.T_max))
 
     # Train and test
     if T >= args.learn_start:

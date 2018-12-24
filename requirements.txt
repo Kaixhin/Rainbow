@@ -2,3 +2,4 @@ atari-py
 opencv-python
 plotly
 pytorch
+tqdm
