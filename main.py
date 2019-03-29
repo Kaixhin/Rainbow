@@ -40,6 +40,7 @@ parser.add_argument('--evaluation-interval', type=int, default=100000, metavar='
 parser.add_argument('--evaluation-episodes', type=int, default=10, metavar='N', help='Number of evaluation episodes to average over')
 parser.add_argument('--evaluation-size', type=int, default=500, metavar='N', help='Number of transitions to use for validating Q')
 parser.add_argument('--render', action='store_true', help='Display screen (testing only)')
+parser.add_argument('--enable-cudnn', action='store_true', help='Enable cuDNN (faster but nondeterministic)')
 
 
 # Setup
@@ -52,7 +53,7 @@ torch.manual_seed(np.random.randint(1, 10000))
 if torch.cuda.is_available() and not args.disable_cuda:
   args.device = torch.device('cuda')
   torch.cuda.manual_seed(np.random.randint(1, 10000))
-  torch.backends.cudnn.enabled = False  # Disable nondeterministic ops (not sure if critical but better safe than sorry)
+  torch.backends.cudnn.enabled = args.enable_cudnn
 else:
   args.device = torch.device('cpu')
 
