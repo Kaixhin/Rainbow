@@ -14,6 +14,20 @@ Results and pretrained models can be found in the [releases](https://github.com/
 - [x] Distributional RL [[7]](#references)
 - [x] Noisy Nets [[8]](#references)
 
+Data-efficient Rainbow [[9]](#references) can be run using the following options:
+
+```
+python main.py --target-update 2000 \
+               --T-max 100000 \
+               --learn-start 1600 \
+               --memory-capacity 100000 \
+               --replay-frequency 1 \
+               --multi-step 20 \
+               --architecture canonical \
+               --hidden-size 256 \
+               --learning-rate 0.0001
+```
+
 Requirements
 ------------
 
@@ -46,3 +60,4 @@ References
 [6] [Reinforcement Learning: An Introduction](http://www.incompleteideas.net/sutton/book/ebook/the-book.html)  
 [7] [A Distributional Perspective on Reinforcement Learning](https://arxiv.org/abs/1707.06887)  
 [8] [Noisy Networks for Exploration](https://arxiv.org/abs/1706.10295)  
+[8] [When to Use Parametric Models in Reinforcement Learning?](https://arxiv.org/abs/1906.05243)  
