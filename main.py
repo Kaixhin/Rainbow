@@ -1,4 +1,6 @@
 import argparse
+from math import inf
+import os
 from datetime import datetime
 import atari_py
 import numpy as np
@@ -13,6 +15,7 @@ from tqdm import tqdm
 
 # Note that hyperparameters may originally be reported in ATARI game frames instead of agent steps
 parser = argparse.ArgumentParser(description='Rainbow')
+parser.add_argument('--id', type=str, default='default', help='Experiment ID')
 parser.add_argument('--seed', type=int, default=123, help='Random seed')
 parser.add_argument('--disable-cuda', action='store_true', help='Disable CUDA')
 parser.add_argument('--game', type=str, default='space_invaders', choices=atari_py.list_games(), help='ATARI game')
@@ -51,6 +54,9 @@ args = parser.parse_args()
 print(' ' * 26 + 'Options')
 for k, v in vars(args).items():
   print(' ' * 26 + k + ': ' + str(v))
+results_dir = os.path.join('results', args.id)
+os.makedirs(results_dir, exist_ok=True)
+metrics = {'steps': [], 'rewards': [], 'Qs': [], 'best_avg_reward': -inf}
 np.random.seed(args.seed)
 torch.manual_seed(np.random.randint(1, 10000))
 if torch.cuda.is_available() and not args.disable_cuda:
@@ -92,7 +98,7 @@ while T < args.evaluation_size:
 
 if args.evaluate:
   dqn.eval()  # Set DQN (online network) to evaluation mode
-  avg_reward, avg_Q = test(args, 0, dqn, val_mem, evaluate=True)  # Test
+  avg_reward, avg_Q = test(args, 0, dqn, val_mem, metrics, results_dir, evaluate=True)  # Test
   print('Avg. reward: ' + str(avg_reward) + ' | Avg. Q: ' + str(avg_Q))
 else:
   # Training loop
@@ -120,7 +126,7 @@ else:
 
       if T % args.evaluation_interval == 0:
         dqn.eval()  # Set DQN (online network) to evaluation mode
-        avg_reward, avg_Q = test(args, T, dqn, val_mem)  # Test
+        avg_reward, avg_Q = test(args, T, dqn, val_mem, metrics, results_dir)  # Test
         log('T = ' + str(T) + ' / ' + str(args.T_max) + ' | Avg. reward: ' + str(avg_reward) + ' | Avg. Q: ' + str(avg_Q))
         dqn.train()  # Set DQN (online network) back to training mode
 

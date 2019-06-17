@@ -7,16 +7,11 @@ import torch
 from env import Env
 
 
-# Globals
-Ts, rewards, Qs, best_avg_reward = [], [], [], -1e10
-
-
 # Test DQN
-def test(args, T, dqn, val_mem, evaluate=False):
-  global Ts, rewards, Qs, best_avg_reward
+def test(args, T, dqn, val_mem, metrics, results_dir, evaluate=False):
   env = Env(args)
   env.eval()
-  Ts.append(T)
+  metrics['steps'].append(T)
   T_rewards, T_Qs = [], []
 
   # Test performance over several episodes
@@ -43,18 +38,19 @@ def test(args, T, dqn, val_mem, evaluate=False):
 
   avg_reward, avg_Q = sum(T_rewards) / len(T_rewards), sum(T_Qs) / len(T_Qs)
   if not evaluate:
-    # Append to results
-    rewards.append(T_rewards)
-    Qs.append(T_Qs)
+    # Save model parameters if improved
+    if avg_reward > metrics['best_avg_reward']:
+      metrics['best_avg_reward'] = avg_reward
+      dqn.save(results_dir)
+
+    # Append to results and save metrics
+    metrics['rewards'].append(T_rewards)
+    metrics['Qs'].append(T_Qs)
+    torch.save(metrics, os.path.join(results_dir, 'metrics.pth'))
 
     # Plot
-    _plot_line(Ts, rewards, 'Reward', path='results')
-    _plot_line(Ts, Qs, 'Q', path='results')
-
-    # Save model parameters if improved
-    if avg_reward > best_avg_reward:
-      best_avg_reward = avg_reward
-      dqn.save('results')
+    _plot_line(metrics['steps'], metrics['rewards'], 'Reward', path=results_dir)
+    _plot_line(metrics['steps'], metrics['Qs'], 'Q', path=results_dir)
 
   # Return average reward and Q-value
   return avg_reward, avg_Q
