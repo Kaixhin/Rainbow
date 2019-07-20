@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from collections import deque
 import random
 import atari_py

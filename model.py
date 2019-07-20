@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import math
 import torch
 from torch import nn
@@ -46,7 +47,7 @@ class NoisyLinear(nn.Module):
 
 class DQN(nn.Module):
   def __init__(self, args, action_space):
-    super().__init__()
+    super(DQN, self).__init__()
     self.atoms = args.atoms
     self.action_space = action_space
 

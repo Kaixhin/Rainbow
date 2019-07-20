@@ -1,5 +1,5 @@
+# -*- coding: utf-8 -*-
 import argparse
-from math import inf
 import os
 from datetime import datetime
 import atari_py
@@ -55,8 +55,9 @@ print(' ' * 26 + 'Options')
 for k, v in vars(args).items():
   print(' ' * 26 + k + ': ' + str(v))
 results_dir = os.path.join('results', args.id)
-os.makedirs(results_dir, exist_ok=True)
-metrics = {'steps': [], 'rewards': [], 'Qs': [], 'best_avg_reward': -inf}
+if not os.path.exists(results_dir):
+  os.makedirs(results_dir)
+metrics = {'steps': [], 'rewards': [], 'Qs': [], 'best_avg_reward': -float('inf')}
 np.random.seed(args.seed)
 torch.manual_seed(np.random.randint(1, 10000))
 if torch.cuda.is_available() and not args.disable_cuda:
