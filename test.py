@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from __future__ import division
 import os
 import plotly
 from plotly.graph_objs import Scatter
