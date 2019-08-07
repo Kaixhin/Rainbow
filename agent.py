@@ -26,7 +26,6 @@ class Agent():
       # Always load tensors onto CPU by default, will shift to GPU if necessary
       self.online_net.load_state_dict(torch.load(args.model, map_location='cpu'))
       print("Loading pretrained model: " + args.model)
-
     elif args.model and not os.path.isfile(args.model):
       raise FileNotFoundError(args.model)
 
