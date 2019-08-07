@@ -21,7 +21,7 @@ class Agent():
     self.discount = args.discount
 
     self.online_net = DQN(args, self.action_space).to(device=args.device)
-    # load model (raise exception on incorrect model paths)
+    # Load model if provided (raises exception for incorrect model path)
     if args.model and os.path.isfile(args.model):
       # Always load tensors onto CPU by default, will shift to GPU if necessary
       self.online_net.load_state_dict(torch.load(args.model, map_location='cpu'))
