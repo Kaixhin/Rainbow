@@ -29,9 +29,6 @@ class Agent():
     elif args.model and not os.path.isfile(args.model):
       raise FileNotFoundError(args.model)
 
-    else:
-      print("Training from scratch (no pretrained model provided)")
-      
     self.online_net.train()
 
     self.target_net = DQN(args, self.action_space).to(device=args.device)
