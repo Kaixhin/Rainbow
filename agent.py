@@ -21,13 +21,11 @@ class Agent():
     self.discount = args.discount
 
     self.online_net = DQN(args, self.action_space).to(device=args.device)
-    # Load model if provided (raises exception for incorrect model path)
-    if args.model:
-      if os.path.isfile(args.model)
-        # Always load tensors onto CPU by default, will shift to GPU if necessary
-        self.online_net.load_state_dict(torch.load(args.model, map_location='cpu'))
+    if args.model:  # Load pretrained model if provided
+      if os.path.isfile(args.model):
+        self.online_net.load_state_dict(torch.load(args.model, map_location='cpu'))  # Always load tensors onto CPU by default, will shift to GPU if necessary
         print("Loading pretrained model: " + args.model)
-      else:
+      else:  # Raise error if incorrect model path provided
         raise FileNotFoundError(args.model)
 
     self.online_net.train()
