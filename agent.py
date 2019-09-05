@@ -23,7 +23,12 @@ class Agent():
     self.online_net = DQN(args, self.action_space).to(device=args.device)
     if args.model:  # Load pretrained model if provided
       if os.path.isfile(args.model):
-        self.online_net.load_state_dict(torch.load(args.model, map_location='cpu'))  # Always load tensors onto CPU by default, will shift to GPU if necessary
+        state_dict = torch.load(args.model, map_location='cpu')  # Always load tensors onto CPU by default, will shift to GPU if necessary
+        if 'conv1.weight' in state_dict.keys():
+          for old_key, new_key in (('conv1.weight', 'convs.0.weight'), ('conv1.bias', 'convs.0.bias'), ('conv2.weight', 'convs.2.weight'), ('conv2.bias', 'convs.2.bias'), ('conv3.weight', 'convs.4.weight'), ('conv3.bias', 'convs.4.bias')):
+            state_dict[new_key] = state_dict[old_key]  # Re-map state dict for old pretrained models
+            del state_dict[old_key]  # Delete old keys for strict load_state_dict
+        self.online_net.load_state_dict(state_dict)
         print("Loading pretrained model: " + args.model)
       else:  # Raise error if incorrect model path provided
         raise FileNotFoundError(args.model)
