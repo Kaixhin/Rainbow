@@ -11,7 +11,7 @@ from agent import Agent
 from env import Env
 from memory import ReplayMemory
 from test import test
-from tqdm import tqdm
+from tqdm import trange
 import pickle
 import bz2
 
@@ -145,7 +145,7 @@ else:
   # Training loop
   dqn.train()
   T, done = 0, True
-  for T in tqdm(range(args.T_max)):
+  for T in trange(1, args.T_max + 1):
     if done:
       state, done = env.reset(), False
 
