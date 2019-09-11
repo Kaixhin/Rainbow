@@ -12,6 +12,8 @@ from env import Env
 from memory import ReplayMemory
 from test import test
 from tqdm import tqdm
+import pickle
+import bz2
 
 
 # Note that hyperparameters may originally be reported in ATARI game frames instead of agent steps
@@ -49,6 +51,8 @@ parser.add_argument('--evaluation-size', type=int, default=500, metavar='N', hel
 parser.add_argument('--render', action='store_true', help='Display screen (testing only)')
 parser.add_argument('--enable-cudnn', action='store_true', help='Enable cuDNN (faster but nondeterministic)')
 
+parser.add_argument('--memory-save-path', help='Path to save/load the memory from')
+parser.add_argument('--dont-bzip-memory', action='store_true', help='Don\'t zip the memory file. Not recommended (zipping is a bit slower and much, much smaller)')
 
 # Setup
 args = parser.parse_args()
@@ -74,15 +78,50 @@ def log(s):
   print('[' + str(datetime.now().strftime('%Y-%m-%dT%H:%M:%S')) + '] ' + s)
 
 
+def load_memory():
+  global args
+
+  if args.dont_bzip_memory:
+    with open(args.memory_save_path, 'rb') as pickle_file:
+      return pickle.load(pickle_file)
+
+  else:
+    with bz2.open(args.memory_save_path, 'rb') as zipped_pickle_file:
+      return pickle.load(zipped_pickle_file)
+
+
+def save_memory(memory):
+  global args
+
+  if args.dont_bzip_memory:
+    with open(args.memory_save_path, 'wb') as pickle_file:
+      pickle.dump(memory, pickle_file)
+
+  else:
+    with bz2.open(args.memory_save_path, 'wb') as zipped_pickle_file:
+      pickle.dump(memory, zipped_pickle_file)
+
 # Environment
 env = Env(args)
 env.train()
 action_space = env.action_space()
 
-
 # Agent
 dqn = Agent(args, env)
-mem = ReplayMemory(args, args.memory_capacity)
+
+# If a model is provided, and evaluate is fale, presumably we want to resume, so try to load memory
+if args.model is not None and not args.evaluate:
+  if not args.memory_save_path:
+    raise ValueError('Cannot resume training without memory save path. Aborting...')
+
+  if not os.path.exists(args.memory_save_path):
+    raise ValueError('Could not find memory file at {path}. Aborting...'.format(path=args.memory_save_path))
+
+  mem = load_memory()
+
+else:
+  mem = ReplayMemory(args, args.memory_capacity)
+
 priority_weight_increase = (1 - args.priority_weight) / (args.T_max - args.learn_start)
 
 
@@ -131,6 +170,10 @@ else:
         avg_reward, avg_Q = test(args, T, dqn, val_mem, metrics, results_dir)  # Test
         log('T = ' + str(T) + ' / ' + str(args.T_max) + ' | Avg. reward: ' + str(avg_reward) + ' | Avg. Q: ' + str(avg_Q))
         dqn.train()  # Set DQN (online network) back to training mode
+
+        # If memory path provided, save it
+        if args.memory_save_path is not None:
+          save_memory(mem)
 
       # Update target network
       if T % args.target_update == 0:
