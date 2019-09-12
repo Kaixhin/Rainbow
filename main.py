@@ -51,11 +51,16 @@ parser.add_argument('--evaluation-size', type=int, default=500, metavar='N', hel
 parser.add_argument('--render', action='store_true', help='Display screen (testing only)')
 parser.add_argument('--enable-cudnn', action='store_true', help='Enable cuDNN (faster but nondeterministic)')
 
+parser.add_argument('--checkpoint-interval', default=None, help='How often to checkpoint the model, defaults to the evaluation interval')
 parser.add_argument('--memory-save-path', help='Path to save/load the memory from')
 parser.add_argument('--dont-bzip-memory', action='store_true', help='Don\'t zip the memory file. Not recommended (zipping is a bit slower and much, much smaller)')
 
 # Setup
 args = parser.parse_args()
+
+if args.checkpoint_interval is None:
+  args.checkpoint_interval = args.evaluation_interval
+
 print(' ' * 26 + 'Options')
 for k, v in vars(args).items():
   print(' ' * 26 + k + ': ' + str(v))
@@ -178,6 +183,10 @@ else:
       # Update target network
       if T % args.target_update == 0:
         dqn.update_target_net()
+
+      # Checkpoint the network
+      if T % args.checkpoint_interval == 0:
+        dqn.save(results_dir, 'checkpoint.pth')
 
     state = next_state
 
