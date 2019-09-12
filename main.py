@@ -1,19 +1,20 @@
 # -*- coding: utf-8 -*-
 from __future__ import division
 import argparse
-import os
+import bz2
 from datetime import datetime
+import os
+import pickle
+
 import atari_py
 import numpy as np
 import torch
+from tqdm import trange
 
 from agent import Agent
 from env import Env
 from memory import ReplayMemory
 from test import test
-from tqdm import trange
-import pickle
-import bz2
 
 
 # Note that hyperparameters may originally be reported in ATARI game frames instead of agent steps
@@ -50,16 +51,12 @@ parser.add_argument('--evaluation-episodes', type=int, default=10, metavar='N', 
 parser.add_argument('--evaluation-size', type=int, default=500, metavar='N', help='Number of transitions to use for validating Q')
 parser.add_argument('--render', action='store_true', help='Display screen (testing only)')
 parser.add_argument('--enable-cudnn', action='store_true', help='Enable cuDNN (faster but nondeterministic)')
-
-parser.add_argument('--checkpoint-interval', default=None, help='How often to checkpoint the model, defaults to the evaluation interval')
-parser.add_argument('--memory-save-path', help='Path to save/load the memory from')
-parser.add_argument('--dont-bzip-memory', action='store_true', help='Don\'t zip the memory file. Not recommended (zipping is a bit slower and much, much smaller)')
+parser.add_argument('--checkpoint-interval', default=0, help='How often to checkpoint the model, defaults to 0 (never checkpoint)')
+parser.add_argument('--memory', help='Path to save/load the memory from')
+parser.add_argument('--disable-bzip-memory', action='store_true', help='Don\'t zip the memory file. Not recommended (zipping is a bit slower and much, much smaller)')
 
 # Setup
 args = parser.parse_args()
-
-if args.checkpoint_interval is None:
-  args.checkpoint_interval = args.evaluation_interval
 
 print(' ' * 26 + 'Options')
 for k, v in vars(args).items():
@@ -83,28 +80,25 @@ def log(s):
   print('[' + str(datetime.now().strftime('%Y-%m-%dT%H:%M:%S')) + '] ' + s)
 
 
-def load_memory():
-  global args
-
-  if args.dont_bzip_memory:
-    with open(args.memory_save_path, 'rb') as pickle_file:
+def load_memory(memory_path, disable_bzip):
+  if disable_bzip:
+    with open(memory_path, 'rb') as pickle_file:
       return pickle.load(pickle_file)
 
   else:
-    with bz2.open(args.memory_save_path, 'rb') as zipped_pickle_file:
+    with bz2.open(memory_path, 'rb') as zipped_pickle_file:
       return pickle.load(zipped_pickle_file)
 
 
-def save_memory(memory):
-  global args
-
-  if args.dont_bzip_memory:
-    with open(args.memory_save_path, 'wb') as pickle_file:
+def save_memory(memory, memory_path, disable_bzip):
+  if disable_bzip:
+    with open(memory_path, 'wb') as pickle_file:
       pickle.dump(memory, pickle_file)
 
   else:
-    with bz2.open(args.memory_save_path, 'wb') as zipped_pickle_file:
+    with bz2.open(memory_path, 'wb') as zipped_pickle_file:
       pickle.dump(memory, zipped_pickle_file)
+
 
 # Environment
 env = Env(args)
@@ -116,13 +110,13 @@ dqn = Agent(args, env)
 
 # If a model is provided, and evaluate is fale, presumably we want to resume, so try to load memory
 if args.model is not None and not args.evaluate:
-  if not args.memory_save_path:
+  if not args.memory:
     raise ValueError('Cannot resume training without memory save path. Aborting...')
 
-  if not os.path.exists(args.memory_save_path):
-    raise ValueError('Could not find memory file at {path}. Aborting...'.format(path=args.memory_save_path))
+  if not os.path.exists(args.memory):
+    raise ValueError('Could not find memory file at {path}. Aborting...'.format(path=args.memory))
 
-  mem = load_memory()
+  mem = load_memory(args.memory, args.disable_bzip_memory)
 
 else:
   mem = ReplayMemory(args, args.memory_capacity)
@@ -177,15 +171,15 @@ else:
         dqn.train()  # Set DQN (online network) back to training mode
 
         # If memory path provided, save it
-        if args.memory_save_path is not None:
-          save_memory(mem)
+        if args.memory is not None:
+          save_memory(mem, args.memory, args.disable_bzip_memory)
 
       # Update target network
       if T % args.target_update == 0:
         dqn.update_target_net()
 
       # Checkpoint the network
-      if T % args.checkpoint_interval == 0:
+      if (args.checkpoint_interval != 0) and (T % args.checkpoint_interval == 0):
         dqn.save(results_dir, 'checkpoint.pth')
 
     state = next_state
