@@ -84,7 +84,6 @@ def load_memory(memory_path, disable_bzip):
   if disable_bzip:
     with open(memory_path, 'rb') as pickle_file:
       return pickle.load(pickle_file)
-
   else:
     with bz2.open(memory_path, 'rb') as zipped_pickle_file:
       return pickle.load(zipped_pickle_file)
@@ -94,7 +93,6 @@ def save_memory(memory, memory_path, disable_bzip):
   if disable_bzip:
     with open(memory_path, 'wb') as pickle_file:
       pickle.dump(memory, pickle_file)
-
   else:
     with bz2.open(memory_path, 'wb') as zipped_pickle_file:
       pickle.dump(memory, zipped_pickle_file)
@@ -112,8 +110,7 @@ dqn = Agent(args, env)
 if args.model is not None and not args.evaluate:
   if not args.memory:
     raise ValueError('Cannot resume training without memory save path. Aborting...')
-
-  if not os.path.exists(args.memory):
+  elif not os.path.exists(args.memory):
     raise ValueError('Could not find memory file at {path}. Aborting...'.format(path=args.memory))
 
   mem = load_memory(args.memory, args.disable_bzip_memory)
