@@ -1,17 +1,20 @@
 # -*- coding: utf-8 -*-
 from __future__ import division
 import argparse
-import os
+import bz2
 from datetime import datetime
+import os
+import pickle
+
 import atari_py
 import numpy as np
 import torch
+from tqdm import trange
 
 from agent import Agent
 from env import Env
 from memory import ReplayMemory
 from test import test
-from tqdm import tqdm
 
 
 # Note that hyperparameters may originally be reported in ATARI game frames instead of agent steps
@@ -49,10 +52,13 @@ parser.add_argument('--evaluation-episodes', type=int, default=10, metavar='N', 
 parser.add_argument('--evaluation-size', type=int, default=500, metavar='N', help='Number of transitions to use for validating Q')
 parser.add_argument('--render', action='store_true', help='Display screen (testing only)')
 parser.add_argument('--enable-cudnn', action='store_true', help='Enable cuDNN (faster but nondeterministic)')
-
+parser.add_argument('--checkpoint-interval', default=0, help='How often to checkpoint the model, defaults to 0 (never checkpoint)')
+parser.add_argument('--memory', help='Path to save/load the memory from')
+parser.add_argument('--disable-bzip-memory', action='store_true', help='Don\'t zip the memory file. Not recommended (zipping is a bit slower and much, much smaller)')
 
 # Setup
 args = parser.parse_args()
+
 print(' ' * 26 + 'Options')
 for k, v in vars(args).items():
   print(' ' * 26 + k + ': ' + str(v))
@@ -75,15 +81,44 @@ def log(s):
   print('[' + str(datetime.now().strftime('%Y-%m-%dT%H:%M:%S')) + '] ' + s)
 
 
+def load_memory(memory_path, disable_bzip):
+  if disable_bzip:
+    with open(memory_path, 'rb') as pickle_file:
+      return pickle.load(pickle_file)
+  else:
+    with bz2.open(memory_path, 'rb') as zipped_pickle_file:
+      return pickle.load(zipped_pickle_file)
+
+
+def save_memory(memory, memory_path, disable_bzip):
+  if disable_bzip:
+    with open(memory_path, 'wb') as pickle_file:
+      pickle.dump(memory, pickle_file)
+  else:
+    with bz2.open(memory_path, 'wb') as zipped_pickle_file:
+      pickle.dump(memory, zipped_pickle_file)
+
+
 # Environment
 env = Env(args)
 env.train()
 action_space = env.action_space()
 
-
 # Agent
 dqn = Agent(args, env)
-mem = ReplayMemory(args, args.memory_capacity)
+
+# If a model is provided, and evaluate is fale, presumably we want to resume, so try to load memory
+if args.model is not None and not args.evaluate:
+  if not args.memory:
+    raise ValueError('Cannot resume training without memory save path. Aborting...')
+  elif not os.path.exists(args.memory):
+    raise ValueError('Could not find memory file at {path}. Aborting...'.format(path=args.memory))
+
+  mem = load_memory(args.memory, args.disable_bzip_memory)
+
+else:
+  mem = ReplayMemory(args, args.memory_capacity)
+
 priority_weight_increase = (1 - args.priority_weight) / (args.T_max - args.learn_start)
 
 
@@ -107,7 +142,7 @@ else:
   # Training loop
   dqn.train()
   T, done = 0, True
-  for T in tqdm(range(args.T_max)):
+  for T in trange(1, args.T_max + 1):
     if done:
       state, done = env.reset(), False
 
@@ -133,9 +168,17 @@ else:
         log('T = ' + str(T) + ' / ' + str(args.T_max) + ' | Avg. reward: ' + str(avg_reward) + ' | Avg. Q: ' + str(avg_Q))
         dqn.train()  # Set DQN (online network) back to training mode
 
+        # If memory path provided, save it
+        if args.memory is not None:
+          save_memory(mem, args.memory, args.disable_bzip_memory)
+
       # Update target network
       if T % args.target_update == 0:
         dqn.update_target_net()
+
+      # Checkpoint the network
+      if (args.checkpoint_interval != 0) and (T % args.checkpoint_interval == 0):
+        dqn.save(results_dir, 'checkpoint.pth')
 
     state = next_state
 
