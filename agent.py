@@ -4,6 +4,7 @@ import os
 import numpy as np
 import torch
 from torch import optim
+from torch.nn.utils import clip_grad_norm_
 
 from model import DQN
 
@@ -19,6 +20,7 @@ class Agent():
     self.batch_size = args.batch_size
     self.n = args.multi_step
     self.discount = args.discount
+    self.norm_clip = args.norm_clip
 
     self.online_net = DQN(args, self.action_space).to(device=args.device)
     if args.model:  # Load pretrained model if provided
@@ -92,6 +94,7 @@ class Agent():
     loss = -torch.sum(m * log_ps_a, 1)  # Cross-entropy loss (minimises DKL(m||p(s_t, a_t)))
     self.online_net.zero_grad()
     (weights * loss).mean().backward()  # Backpropagate importance-weighted minibatch loss
+    clip_grad_norm_(self.online_net.parameters(), self.norm_clip)  # Clip gradients by L2 norm
     self.optimiser.step()
 
     mem.update_priorities(idxs, loss.detach().cpu().numpy())  # Update priorities of sampled transitions
