@@ -33,12 +33,12 @@ class SegmentTree():
       self._propagate(parents)
 
   # Propagates single value up tree given a tree index for efficiency
-  def _propagate_index(self, index, value):
+  def _propagate_index(self, index):
     parent = (index - 1) // 2
     left, right = 2 * parent + 1, 2 * parent + 2
     self.sum_tree[parent] = self.sum_tree[left] + self.sum_tree[right]
     if parent != 0:
-      self._propagate_index(parent, value)
+      self._propagate_index(parent)
 
   # Updates values given tree indices
   def update(self, indices, values):
@@ -50,7 +50,7 @@ class SegmentTree():
   # Updates single value given a tree index for efficiency
   def _update_index(self, index, value):
     self.sum_tree[index] = value  # Set new value
-    self._propagate_index(index, value)  # Propagate value
+    self._propagate_index(index)  # Propagate value
     self.max = max(value, self.max)
 
   def append(self, data, value):
