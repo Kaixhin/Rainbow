@@ -131,7 +131,7 @@ while T < args.evaluation_size:
     state, done = env.reset(), False
 
   next_state, _, done = env.step(np.random.randint(0, action_space))
-  val_mem.append(state, None, None, done)
+  val_mem.append(state, -1, 0.0, done)
   state = next_state
   T += 1
 
