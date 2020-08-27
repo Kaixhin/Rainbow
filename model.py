@@ -30,7 +30,7 @@ class NoisyLinear(nn.Module):
     self.bias_sigma.data.fill_(self.std_init / math.sqrt(self.out_features))
 
   def _scale_noise(self, size):
-    x = torch.randn(size)
+    x = torch.randn(size, device=self.weight_mu.device)
     return x.sign().mul_(x.abs().sqrt_())
 
   def reset_noise(self):
