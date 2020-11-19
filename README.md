@@ -35,6 +35,8 @@ python main.py --target-update 2000 \
                --evaluation-interval 10000
 ```
 
+Note that pretrained models from the [`1.3`](https://github.com/Kaixhin/Rainbow/releases/tag/1.3) release used a (slightly) incorrect network architecture. To use these, change the padding in the first convolutional layer from 0 to 1 (DeepMind uses "valid" (no) padding).
+
 Requirements
 ------------
 
