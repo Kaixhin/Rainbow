@@ -128,7 +128,7 @@ val_mem = ReplayMemory(args, args.evaluation_size)
 T, done = 0, True
 while T < args.evaluation_size:
   if done:
-    state, done = env.reset(), False
+    state = env.reset()
 
   next_state, _, done = env.step(np.random.randint(0, action_space))
   val_mem.append(state, -1, 0.0, done)
@@ -145,7 +145,7 @@ else:
   T, done = 0, True
   for T in trange(1, args.T_max + 1):
     if done:
-      state, done = env.reset(), False
+      state = env.reset()
 
     if T % args.replay_frequency == 0:
       dqn.reset_noise()  # Draw a new set of noisy weights
