@@ -65,6 +65,8 @@ class SegmentTree():
     children_indices = (indices * 2 + np.expand_dims([1, 2], axis=1)) # Make matrix of children indices
     if children_indices[0, 0] >= self.sum_tree.shape[0]:
       return indices
+    elif children_indices[0, 0] >= self.tree_start:
+      children_indices = np.maximum(children_indices, self.sum_tree.shape[0] - 1)
     left_children_values = self.sum_tree[children_indices[0]]
     successor_choices = np.greater(values, left_children_values).astype(np.int32)  # Classify which values are in left or right branches
     successor_indices = children_indices[successor_choices, np.arange(indices.size)] # Use classification to index into the indices matrix
