@@ -63,8 +63,10 @@ class SegmentTree():
   # Searches for the location of values in sum tree
   def _retrieve(self, indices, values):
     children_indices = (indices * 2 + np.expand_dims([1, 2], axis=1)) # Make matrix of children indices
+    # If indices correspond to leaf nodes, return them
     if children_indices[0, 0] >= self.sum_tree.shape[0]:
       return indices
+    # If children indices correspond to leaf nodes, bound rare outliers in case total slightly overshoots
     elif children_indices[0, 0] >= self.tree_start:
       children_indices = np.minimum(children_indices, self.sum_tree.shape[0] - 1)
     left_children_values = self.sum_tree[children_indices[0]]
