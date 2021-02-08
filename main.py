@@ -108,7 +108,7 @@ action_space = env.action_space()
 # Agent
 dqn = Agent(args, env)
 
-# If a model is provided, and evaluate is fale, presumably we want to resume, so try to load memory
+# If a model is provided, and evaluate is false, presumably we want to resume, so try to load memory
 if args.model is not None and not args.evaluate:
   if not args.memory:
     raise ValueError('Cannot resume training without memory save path. Aborting...')
