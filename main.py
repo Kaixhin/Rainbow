@@ -142,7 +142,7 @@ if args.evaluate:
 else:
   # Training loop
   dqn.train()
-  T, done = 0, True
+  done = True
   for T in trange(1, args.T_max + 1):
     if done:
       state = env.reset()
